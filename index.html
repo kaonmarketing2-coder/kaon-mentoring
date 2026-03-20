@@ -124,6 +124,34 @@
   .nav-item.active { background: var(--primary-light); color: var(--primary); border-left-color: var(--primary); font-weight: 700; }
   .nav-icon { font-size: 14px; width: 18px; text-align: center; }
   .main { flex: 1; padding: 28px; overflow-y: auto; }
+  .main-inner { max-width: 960px; margin: 0 auto; }
+
+  /* 보드게임 맵 */
+  .stamp-map { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; overflow-x: auto; }
+  .stamp-map-title { font-size: 13px; font-weight: 700; color: var(--black); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .map-track { display: flex; align-items: center; flex-wrap: nowrap; gap: 0; }
+  .map-cell { position: relative; width: 82px; height: 82px; border: 2px solid var(--gray-200); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--gray-50); flex-shrink: 0; }
+  .map-cell.is-start { background: #FFF3EB; border-color: var(--primary); }
+  .map-cell.is-finish { background: #FFFBEB; border-color: #D97706; }
+  .map-cell.is-done { background: var(--green-light); border-color: var(--green); }
+  .map-cell-num { font-size: 10px; font-weight: 700; color: var(--gray-400); margin-bottom: 2px; }
+  .map-cell-name { font-size: 8.5px; color: var(--gray-500); text-align: center; padding: 0 5px; line-height: 1.3; word-break: keep-all; }
+  .map-cell.is-done .map-cell-num { color: var(--green); }
+  .map-cell.is-done .map-cell-name { color: var(--green); font-weight: 600; }
+  .map-cell.is-finish .map-cell-num { color: #D97706; }
+  .map-arrow { display: flex; align-items: center; justify-content: center; width: 18px; height: 82px; flex-shrink: 0; color: var(--gray-300); font-size: 13px; }
+  .pieces-wrap { position: absolute; bottom: 3px; right: 3px; display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; max-width: 60px; }
+  .piece { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 800; color: white; }
+
+  /* 순위 카드 */
+  .rank-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .rank-card { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .rank-card.r1 { border-color: #FCD34D; background: #FFFBEB; }
+  .rank-badge { font-size: 22px; flex-shrink: 0; line-height: 1; }
+  .rank-info { flex: 1; min-width: 0; }
+  .rank-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+  .rank-stamp { font-size: 12px; color: var(--primary); font-weight: 600; }
+  .rank-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 5px; }
 
   /* CARDS */
   .card { background: white; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 22px; margin-bottom: 16px; }
@@ -422,6 +450,73 @@ async function getSubmissions() {
 }
 
 // ── RENDER ADMIN DASHBOARD ──
+
+// ── 보드게임 스탬프 맵 생성 ──
+function buildStampMap(missions, groups, completedMap, stampsMap) {
+  if (missions.length === 0) return '<div class="empty" style="padding:20px">미션이 등록되지 않았습니다.</div>';
+
+  const PIECE_COLORS = ['#FF6B00','#0070C0','#059669','#7C3AED','#DC2626','#D97706','#0891B2','#BE185D'];
+
+  // 각 조의 현재 위치 = 완료한 미션 수
+  const posMap = {};
+  groups.forEach(g => {
+    posMap[g.id] = (completedMap[g.id] || new Set()).size;
+  });
+
+  // 셀 배열: START + 미션1~N + FINISH
+  const cells = [
+    { type: 'start', label: 'START', name: '출발!' },
+    ...missions.map((m, i) => ({ type: 'mission', label: `미션 ${i+1}`, name: m.name, id: m.id, index: i })),
+    { type: 'finish', label: 'FINISH', name: '수료!' }
+  ];
+
+  // 조별 말 위치 (0=start, 1~N=미션완료수, N+1=finish)
+  const piecesByCell = {};
+  groups.forEach((g, gi) => {
+    const pos = Math.min(posMap[g.id] || 0, missions.length);
+    if (!piecesByCell[pos]) piecesByCell[pos] = [];
+    piecesByCell[pos].push({ name: g.name, color: PIECE_COLORS[gi % PIECE_COLORS.length], initial: g.name.charAt(0) });
+  });
+
+  let html = '<div class="map-track">';
+  cells.forEach((cell, ci) => {
+    const isDone = cell.type === 'mission' && groups.some(g => (completedMap[g.id] || new Set()).has(cell.id));
+    const allDone = cell.type === 'mission' && groups.length > 0 && groups.every(g => (completedMap[g.id] || new Set()).has(cell.id));
+    const cellClass = cell.type === 'start' ? 'is-start' : cell.type === 'finish' ? 'is-finish' : (allDone ? 'is-done' : (isDone ? 'is-done' : ''));
+    const pieces = piecesByCell[ci] || [];
+    const piecesHTML = pieces.length > 0
+      ? `<div class="pieces-wrap">${pieces.map(p => `<div class="piece" style="background:${p.color}" title="${p.name}">${p.initial}</div>`).join('')}</div>`
+      : '';
+
+    html += `<div class="map-cell ${cellClass}">
+      <div class="map-cell-num">${cell.label}</div>
+      <div class="map-cell-name">${cell.name}</div>
+      ${piecesHTML}
+    </div>`;
+
+    if (ci < cells.length - 1) {
+      html += `<div class="map-arrow">›</div>`;
+    }
+  });
+  html += '</div>';
+
+  // 범례
+  if (groups.length > 0) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-200)">`;
+    groups.forEach((g, gi) => {
+      const pos = posMap[g.id] || 0;
+      const color = PIECE_COLORS[gi % PIECE_COLORS.length];
+      html += `<div style="display:flex;align-items:center;gap:5px;font-size:12px">
+        <div style="width:14px;height:14px;border-radius:50%;background:${color};border:1.5px solid white;box-shadow:0 0 0 1px ${color}"></div>
+        <span style="font-weight:500">${g.name}</span>
+        <span style="color:var(--gray-400)">(${pos}/${missions.length} 완료)</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
 async function renderDashboard() {
   const el = document.getElementById('page-dashboard');
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
@@ -470,21 +565,38 @@ async function renderDashboard() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `
+  const mapHTML = buildStampMap(missions, groups, completedMap, stampsMap);
+
+  el.innerHTML = `<div class="main-inner">
     <div class="metrics-grid">
       <div class="metric metric-accent"><div class="metric-val">${missions.length}</div><div class="metric-label">등록 미션</div></div>
       <div class="metric"><div class="metric-val">${groups.length}</div><div class="metric-label">참여 조</div></div>
       <div class="metric"><div class="metric-val">${submissions.length}</div><div class="metric-label">총 제출 수</div></div>
       <div class="metric"><div class="metric-val">${activeGroups}</div><div class="metric-label">활동 중인 조</div></div>
     </div>
-    <div class="card">
-      <div class="card-title">🏆 조별 스탬프 순위</div>
-      <div class="lb-list">${lbHTML}</div>
+    <div class="rank-cards">${sorted.map((g,i) => {
+      const stamps = stampsMap[g.id]||0;
+      const done = completedMap[g.id]||new Set();
+      const emoji = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`;
+      const dots = missions.map((m,mi) => `<div class="dot ${done.has(m.id)?'dot-done':'dot-empty'}" title="미션${mi+1}">${mi+1}</div>`).join('');
+      return `<div class="rank-card ${i===0?'r1':''}">
+        <div class="rank-badge">${emoji}</div>
+        <div class="rank-info">
+          <div class="rank-name">${g.name}</div>
+          <div class="rank-stamp">${stamps}스탬프</div>
+          <div class="rank-dots">${dots}</div>
+        </div>
+      </div>`;
+    }).join('')}</div>
+    <div class="stamp-map">
+      <div class="stamp-map-title">🎲 스탬프 투어 맵 — 내 조는 어디쯤?</div>
+      ${mapHTML}
     </div>
     <div class="card">
       <div class="card-title">📈 미션별 완료율</div>
       ${matrixHTML || '<div class="empty">등록된 미션이 없습니다.</div>'}
-    </div>`;
+    </div>
+  </div>`;
 }
 
 // ── RENDER MISSIONS ──
@@ -536,12 +648,22 @@ async function renderMissions() {
 async function renderGroups() {
   const el = document.getElementById('page-groups');
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
-  const groups = await getGroups();
+  const [groups, submissions] = await Promise.all([getGroups(), getSubmissions()]);
+
+  // exportData 갱신 (deleteGroup에서 건수 참조용)
+  if (!window._exportData) window._exportData = {};
+  window._exportData.groups = groups;
+  window._exportData.submissions = submissions;
 
   const chipsHTML = groups.length === 0 ? '<div class="empty">등록된 조가 없습니다.</div>' :
-    `<div class="group-chips">${groups.map(g =>
-      `<div class="group-chip">${g.name}<span class="chip-del" onclick="deleteGroup('${g.id}')">×</span></div>`
-    ).join('')}</div>`;
+    `<div class="group-chips">${groups.map(g => {
+      const cnt = submissions.filter(s => s.group_id === g.id).length;
+      return `<div class="group-chip">
+        <span>${g.name}</span>
+        ${cnt > 0 ? `<span style="font-size:11px;color:var(--gray-400);background:var(--gray-100);padding:1px 7px;border-radius:20px;margin-left:2px">${cnt}건</span>` : ''}
+        <span class="chip-del" onclick="deleteGroup('${g.id}')">×</span>
+      </div>`;
+    }).join('')}</div>`;
 
   el.innerHTML = `
     <div class="card">
@@ -553,6 +675,7 @@ async function renderGroups() {
     </div>
     <div class="card">
       <div class="card-title">등록된 조 (${groups.length}개)</div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:12px">⚠️ 조 삭제 시 해당 조의 미션 제출 데이터도 함께 삭제됩니다.</div>
       ${chipsHTML}
     </div>`;
 }
@@ -671,16 +794,33 @@ async function renderMemberDashboard() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `
-    <div style="background:linear-gradient(135deg,#1A1A1A,#3A3A3A);border-radius:var(--radius);padding:20px;margin-bottom:16px;color:white">
-      <div style="font-size:13px;opacity:.7;margin-bottom:4px">2026 KAON 웰메이트 프로그램</div>
+  const mapHTML2 = buildStampMap(missions, groups, completedMap, stampsMap);
+
+  el.innerHTML = `<div class="main-inner">
+    <div style="background:linear-gradient(135deg,#1A1A1A,#3A3A3A);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px;color:white">
+      <div style="font-size:12px;opacity:.6;margin-bottom:4px;letter-spacing:0.5px;text-transform:uppercase">2026 KAON 웰메이트 프로그램</div>
       <div style="font-size:20px;font-weight:700">동기들과 함께 성장하고 있어요 🚀</div>
-      <div style="font-size:12px;opacity:.6;margin-top:6px">미션을 완료할수록 스탬프가 쌓여요</div>
+      <div style="font-size:12px;opacity:.5;margin-top:6px">미션을 완료할수록 스탬프가 쌓여요</div>
     </div>
-    <div class="card">
-      <div class="card-title">🏆 조별 스탬프 순위</div>
-      <div class="lb-list">${lbHTML}</div>
-    </div>`;
+    <div class="rank-cards">${sorted.map((g,i) => {
+      const stamps = stampsMap[g.id]||0;
+      const done = completedMap[g.id]||new Set();
+      const emoji = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`;
+      const dots = missions.map((m,mi) => `<div class="dot ${done.has(m.id)?'dot-done':'dot-empty'}" title="미션${mi+1}">${mi+1}</div>`).join('');
+      return `<div class="rank-card ${i===0?'r1':''}">
+        <div class="rank-badge">${emoji}</div>
+        <div class="rank-info">
+          <div class="rank-name">${g.name}</div>
+          <div class="rank-stamp">${stamps}스탬프</div>
+          <div class="rank-dots">${dots}</div>
+        </div>
+      </div>`;
+    }).join('')}</div>
+    <div class="stamp-map">
+      <div class="stamp-map-title">🎲 스탬프 투어 맵 — 내 조는 어디쯤?</div>
+      ${mapHTML2}
+    </div>
+  </div>`;
 }
 
 // ── RENDER MEMBER SUBMIT ──
@@ -737,15 +877,35 @@ window.refreshSubmitForm = function() {
   if (!groupId) { document.getElementById('submit-mission-list').innerHTML = ''; return; }
 
   const completedIds = new Set(submissions.filter(s => s.group_id === groupId).map(s => s.mission_id));
+  const today = new Date(); today.setHours(0,0,0,0);
 
   const listHTML = missions.map((m, i) => {
     const done = completedIds.has(m.id);
+
+    // 마감일 계산
+    let deadlineBadge = '';
+    if (m.end_date) {
+      const end = new Date(m.end_date); end.setHours(0,0,0,0);
+      const diff = Math.round((end - today) / (1000 * 60 * 60 * 24));
+      if (diff < 0) {
+        deadlineBadge = `<span style="font-size:10px;font-weight:600;color:#DC2626;background:#FEF2F2;padding:2px 7px;border-radius:20px;margin-left:4px">마감 ${Math.abs(diff)}일 초과</span>`;
+      } else if (diff === 0) {
+        deadlineBadge = `<span style="font-size:10px;font-weight:600;color:#D97706;background:#FFFBEB;padding:2px 7px;border-radius:20px;margin-left:4px">오늘 마감!</span>`;
+      } else if (diff <= 3) {
+        deadlineBadge = `<span style="font-size:10px;font-weight:600;color:#D97706;background:#FFFBEB;padding:2px 7px;border-radius:20px;margin-left:4px">D-${diff}</span>`;
+      }
+    }
+
     return `<div class="ms-card ${done ? 'done' : ''}" id="msc-${m.id}" onclick="selectMissionToSubmit('${m.id}','${m.name}')">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="mission-num">${i+1}</div>
-        <div>
-          <div style="font-size:13px;font-weight:600">${m.name} ${done ? '<span class="badge badge-green" style="font-size:10px">완료</span>' : ''}</div>
-          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${m.week||''} · ${m.stamp||1}스탬프${m.description?' · '+m.description:''}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+            ${m.name}
+            ${done ? '<span class="badge badge-green" style="font-size:10px">완료</span>' : ''}
+            ${!done ? deadlineBadge : ''}
+          </div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${m.week||''} · ${m.stamp||1}스탬프${m.end_date ? ' · 마감 '+m.end_date : ''}${m.description?' · '+m.description:''}</div>
         </div>
       </div>
     </div>`;
@@ -828,11 +988,18 @@ window.addGroup = async function() {
 };
 
 window.deleteGroup = async function(id) {
-  if (!confirm('이 조를 삭제하시겠습니까?')) return;
+  const group = (window._exportData?.groups || []).find(g => g.id === id);
+  const subCount = (window._exportData?.submissions || []).filter(s => s.group_id === id).length;
+  const groupName = group?.name || '이 조';
+  const warning = subCount > 0
+    ? `"${groupName}"을 삭제하시겠습니까?\n\n⚠️ 이 조의 미션 제출 데이터 ${subCount}건도 함께 삭제됩니다.\n삭제 후에는 복구할 수 없습니다.`
+    : `"${groupName}"을 삭제하시겠습니까?`;
+  if (!confirm(warning)) return;
   await sb.from('submissions').delete().eq('group_id', id);
   await sb.from('groups').delete().eq('id', id);
-  toast('조가 삭제되었습니다.');
+  toast(`"${groupName}"이 삭제되었습니다.`);
   renderGroups();
+  renderDashboard(true);
 };
 
 window.deleteSubmission = async function(id) {
@@ -855,6 +1022,20 @@ window.submitMission = async function() {
 
   const existing = (window._submissions || []).find(s => s.group_id === groupId && s.mission_id === missionId);
   if (existing) { toast('이미 완료된 미션입니다.', 'error'); return; }
+
+  // ── 마감일 경고 체크 ──
+  const mission = (window._missions || []).find(m => m.id === missionId);
+  if (mission?.end_date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(mission.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    if (today > endDate) {
+      const daysOver = Math.round((today - endDate) / (1000 * 60 * 60 * 24));
+      const proceed = confirm(`⚠️ 마감일(${mission.end_date})이 ${daysOver}일 지났어요.\n그래도 제출하시겠습니까?`);
+      if (!proceed) return;
+    }
+  }
 
   let imageUrl = null;
   if (imgInput.files && imgInput.files[0]) {
