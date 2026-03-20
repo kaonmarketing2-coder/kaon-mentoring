@@ -563,13 +563,16 @@ async function renderSubmissions() {
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
   const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
 
+  // 전역 저장 (엑셀 내보내기에서 사용)
+  window._exportData = { missions, groups, submissions };
+
   const listHTML = submissions.length === 0 ? '<div class="empty">제출된 내용이 없습니다.</div>' :
     submissions.map(s => {
       const m = missions.find(x => x.id === s.mission_id);
       const g = groups.find(x => x.id === s.group_id);
       const mi = missions.indexOf(m);
       return `<div class="sub-card">
-        ${s.image_url ? `<img class="sub-img" src="${s.image_url}">` : '<div class="sub-img-empty">사진<br>없음</div>'}
+        ${s.image_url ? `<img class="sub-img" src="${s.image_url}" style="cursor:pointer" onclick="window.open('${s.image_url}','_blank')">` : '<div class="sub-img-empty">사진<br>없음</div>'}
         <div class="sub-body">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:600">${g?.name || '알 수 없는 조'}</span>
@@ -577,6 +580,7 @@ async function renderSubmissions() {
             <span style="font-size:11px;color:var(--gray-400);margin-left:auto">${s.activity_date || ''}</span>
           </div>
           <div style="font-size:12px;color:var(--gray-500)">${s.review || '후기 없음'}</div>
+          ${s.image_url ? `<div style="margin-top:5px"><a href="${s.image_url}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none;font-weight:500">🔗 사진 원본 보기</a></div>` : ''}
         </div>
         <button class="btn btn-danger btn-sm" onclick="deleteSubmission('${s.id}')">삭제</button>
       </div>`;
@@ -584,10 +588,50 @@ async function renderSubmissions() {
 
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">📋 전체 제출 현황 (${submissions.length}건)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">📋 전체 제출 현황 (${submissions.length}건)</div>
+        <button class="btn btn-secondary" onclick="exportToCSV()" style="display:flex;align-items:center;gap:6px;font-weight:600;border-color:var(--primary);color:var(--primary)">
+          ⬇ 엑셀 내보내기
+        </button>
+      </div>
       ${listHTML}
     </div>`;
 }
+
+// ── 엑셀(CSV) 내보내기 ──
+window.exportToCSV = function() {
+  const { missions, groups, submissions } = window._exportData || {};
+  if (!submissions || submissions.length === 0) { toast('내보낼 데이터가 없습니다.', 'error'); return; }
+
+  const BOM = '\uFEFF'; // 한글 깨짐 방지
+  const headers = ['조 이름', '미션 번호', '미션 이름', '활동 날짜', '후기', '사진 URL', '제출 일시'];
+
+  const rows = submissions.map(s => {
+    const m = missions.find(x => x.id === s.mission_id);
+    const g = groups.find(x => x.id === s.group_id);
+    const mi = missions.indexOf(m);
+    const escape = v => `"${(v || '').toString().replace(/"/g, '""')}"`;
+    return [
+      escape(g?.name || ''),
+      escape(`미션${mi >= 0 ? mi + 1 : '?'}`),
+      escape(m?.name || '삭제된 미션'),
+      escape(s.activity_date || ''),
+      escape(s.review || ''),
+      escape(s.image_url || ''),
+      escape(s.submitted_at ? new Date(s.submitted_at).toLocaleString('ko-KR') : ''),
+    ].join(',');
+  });
+
+  const csvContent = BOM + [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `웰메이트_제출현황_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('엑셀 파일 다운로드 완료!');
+};
 
 // ── RENDER MEMBER DASHBOARD ──
 async function renderMemberDashboard() {
