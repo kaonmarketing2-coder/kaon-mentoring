@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAON 웰메이트 플랫폼</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* KAON CI 공식 컬러 */
+    --primary: #FF6B00;       /* KAON 오렌지 */
+    --primary-light: #FFF3EB;
+    --primary-dark: #CC5500;
+    --black: #1A1A1A;         /* KAON 블랙 */
+    --white: #FFFFFF;
+    --gray-50: #F7F7F7;
+    --gray-100: #EFEFEF;
+    --gray-200: #E0E0E0;
+    --gray-300: #BDBDBD;
+    --gray-400: #9E9E9E;
+    --gray-500: #757575;
+    --gray-600: #616161;
+    --gray-700: #424242;
+    --gray-900: #1A1A1A;
+    --green: #059669;
+    --green-light: #D1FAE5;
+    --blue: #0070C0;
+    --blue-light: #E3F0FA;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    --radius: 8px;
+    --radius-sm: 4px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', -apple-system, sans-serif;
+    background: var(--gray-50);
+    color: var(--black);
+    min-height: 100vh;
+  }
+
+  /* TOPBAR — KAON CI: 흰 배경 + 오렌지 하단 라인 */
+  .topbar {
+    background: var(--white);
+    border-bottom: 3px solid var(--primary);
+    padding: 0 28px;
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 12px; }
+
+  /* KAON 로고 SVG (파워버튼 O) */
+  .topbar-logo-wrap { display: flex; align-items: center; gap: 8px; }
+  .kaon-logo-text {
+    font-family: 'Barlow', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--black);
+    letter-spacing: 1px;
+    line-height: 1;
+  }
+  .kaon-logo-text .logo-o {
+    display: inline-block;
+    width: 20px; height: 20px;
+    border: 2.5px solid var(--primary);
+    border-radius: 50%;
+    position: relative;
+    vertical-align: middle;
+    margin: 0 0px;
+  }
+  .kaon-logo-text .logo-o::after {
+    content: '';
+    position: absolute;
+    top: -5px; left: 50%; transform: translateX(-50%);
+    width: 2.5px; height: 8px;
+    background: var(--primary);
+    border-radius: 2px;
+  }
+  .topbar-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--gray-400);
+    border-left: 1px solid var(--gray-200);
+    padding-left: 12px;
+    margin-left: 4px;
+  }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .mode-badge { padding: 4px 14px; font-size: 11px; font-weight: 700; border-radius: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .mode-badge.admin { background: var(--primary); color: white; }
+  .mode-badge.member { background: var(--gray-100); color: var(--gray-500); }
+
+  /* LAYOUT */
+  .layout { display: flex; min-height: calc(100vh - 58px); }
+  .sidebar {
+    width: 210px;
+    background: var(--white);
+    border-right: 1px solid var(--gray-200);
+    padding: 20px 0;
+    flex-shrink: 0;
+  }
+  .sidebar-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--gray-400);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 0 20px;
+    margin-bottom: 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; font-size: 13px; font-weight: 500;
+    color: var(--gray-500); cursor: pointer; transition: all .15s;
+    border-left: 3px solid transparent;
+  }
+  .nav-item:hover { background: var(--gray-50); color: var(--black); }
+  .nav-item.active { background: var(--primary-light); color: var(--primary); border-left-color: var(--primary); font-weight: 700; }
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+  .main { flex: 1; padding: 28px; overflow-y: auto; }
+
+  /* CARDS */
+  .card { background: white; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 22px; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--black); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-title-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+
+  /* METRICS */
+  .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .metric { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 18px; }
+  .metric-val { font-family: 'Barlow', sans-serif; font-size: 30px; font-weight: 800; color: var(--black); line-height: 1; margin-bottom: 5px; }
+  .metric-label { font-size: 11px; font-weight: 500; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-accent { border-top: 3px solid var(--primary); }
+
+  /* FORMS */
+  .form-grid { display: grid; gap: 12px; }
+  .form-grid.col2 { grid-template-columns: 1fr 1fr; }
+  .form-grid.col3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--gray-500); margin-bottom: 5px; }
+  .form-group input, .form-group textarea, .form-group select {
+    width: 100%; padding: 8px 12px; font-size: 13px; border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); background: white; color: var(--gray-900);
+    font-family: inherit; outline: none; transition: border .15s;
+  }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
+  .form-group textarea { resize: vertical; min-height: 72px; }
+
+  /* BUTTONS */
+  .btn { padding: 8px 16px; font-size: 13px; font-weight: 500; border-radius: var(--radius-sm); cursor: pointer; border: 1px solid transparent; font-family: inherit; transition: all .15s; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: #e05f00; }
+  .btn-secondary { background: white; color: var(--gray-600); border-color: var(--gray-200); }
+  .btn-secondary:hover { background: var(--gray-50); }
+  .btn-danger { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
+  .btn-danger:hover { background: #FEE2E2; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-success { background: var(--green-light); color: var(--green); border-color: #A7F3D0; }
+
+  /* MISSION CARDS */
+  .mission-list { display: flex; flex-direction: column; gap: 8px; }
+  .mission-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: white; }
+  .mission-num { width: 30px; height: 30px; border-radius: 50%; background: var(--primary-light); color: var(--primary); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mission-body { flex: 1; min-width: 0; }
+  .mission-name { font-size: 13px; font-weight: 600; color: var(--gray-900); margin-bottom: 3px; }
+  .mission-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .mission-desc { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-blue { background: var(--primary-light); color: var(--primary); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-orange { background: var(--primary-light); color: var(--primary); }
+  .badge-gray { background: var(--gray-100); color: var(--gray-500); }
+
+  /* LEADERBOARD */
+  .lb-list { display: flex; flex-direction: column; gap: 8px; }
+  .lb-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: white; }
+  .lb-row.top1 { border-color: #FCD34D; background: #FFFBEB; }
+  .lb-row.top2 { border-color: var(--gray-300); background: var(--gray-50); }
+  .lb-rank { font-size: 13px; font-weight: 700; width: 28px; text-align: center; flex-shrink: 0; }
+  .lb-rank.r1 { color: #D97706; }
+  .lb-rank.r2 { color: #94A3B8; }
+  .lb-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .lb-dots { display: flex; gap: 4px; flex-wrap: wrap; }
+  .dot { width: 22px; height: 22px; border-radius: 4px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .dot-done { background: var(--green-light); color: var(--green); }
+  .dot-empty { background: var(--gray-100); color: var(--gray-300); }
+  .lb-bar-wrap { width: 100px; background: var(--gray-100); border-radius: 20px; height: 7px; overflow: hidden; }
+  .lb-bar { height: 7px; border-radius: 20px; background: var(--primary); transition: width .4s; }
+  .lb-stamp { font-size: 12px; font-weight: 600; color: var(--gray-600); white-space: nowrap; }
+
+  /* GROUP CHIPS */
+  .group-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .group-chip { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--gray-200); border-radius: 20px; font-size: 13px; background: white; }
+  .chip-del { cursor: pointer; color: var(--gray-400); font-size: 16px; line-height: 1; padding: 0 2px; }
+  .chip-del:hover { color: #DC2626; }
+
+  /* SUBMISSIONS */
+  .sub-card { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: white; margin-bottom: 8px; }
+  .sub-img { width: 56px; height: 56px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; border: 1px solid var(--gray-200); }
+  .sub-img-empty { width: 56px; height: 56px; background: var(--gray-100); border-radius: var(--radius-sm); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--gray-400); text-align: center; }
+  .sub-body { flex: 1; min-width: 0; }
+
+  /* MEMBER SUBMIT */
+  .ms-card { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 14px; cursor: pointer; transition: all .15s; margin-bottom: 8px; }
+  .ms-card:hover { border-color: var(--primary); }
+  .ms-card.selected { border-color: var(--primary); background: var(--primary-light); }
+  .ms-card.done { opacity: 0.5; cursor: default; pointer-events: none; }
+  .img-upload-box { width: 64px; height: 64px; border: 1.5px dashed var(--gray-300); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
+  .img-upload-box:hover { border-color: var(--primary); color: var(--primary); }
+  .preview-img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); }
+
+  /* MATRIX */
+  .matrix-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .matrix-label { font-size: 12px; font-weight: 500; width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+  .matrix-bar-wrap { flex: 1; background: var(--gray-100); border-radius: 20px; height: 8px; overflow: hidden; }
+  .matrix-bar { height: 8px; border-radius: 20px; background: var(--blue); }
+  .matrix-count { font-size: 12px; color: var(--gray-400); width: 60px; text-align: right; flex-shrink: 0; }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; color: white; z-index: 9999; display: none; }
+  #toast.show { display: block; }
+  #toast.success { background: var(--green); }
+  #toast.error { background: #DC2626; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--gray-400); font-size: 13px; }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 40px; color: var(--gray-400); font-size: 13px; }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--gray-200); margin: 16px 0; }
+
+  /* ADMIN PASS */
+  #admin-gate { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+  .gate-box { background: white; border-radius: var(--radius); padding: 28px; width: 320px; text-align: center; }
+  .gate-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .gate-sub { font-size: 12px; color: var(--gray-400); margin-bottom: 18px; }
+
+  @media (max-width: 768px) {
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    .sidebar { display: none; }
+    .form-grid.col3 { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo-wrap">
+      <span class="kaon-logo-text">KA<span class="logo-o"></span>N</span>
+    </div>
+    <span class="topbar-sub">웰메이트 프로그램</span>
+  </div>
+  <div class="topbar-right">
+    <div class="mode-badge" id="mode-badge">조원</div>
+  </div>
+</div>
+
+<!-- ADMIN GATE -->
+<div id="admin-gate" style="display:none">
+  <div class="gate-box">
+    <div style="height:4px;background:var(--primary);border-radius:var(--radius) var(--radius) 0 0;margin:-28px -28px 24px;"></div>
+    <div style="font-family:'Barlow',sans-serif;font-weight:800;font-size:16px;color:var(--black);margin-bottom:4px;letter-spacing:0.5px;text-transform:uppercase">Admin Access</div>
+    <div class="gate-sub">어드민 비밀번호를 입력하세요</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <input type="password" id="admin-pw-input" placeholder="비밀번호" onkeydown="if(event.key==='Enter')checkAdminPw()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;font-weight:700;letter-spacing:0.5px" onclick="checkAdminPw()">확인</button>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div id="admin-nav">
+      <div class="sidebar-section-label" style="margin-bottom:8px">관리</div>
+      <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+        <span class="nav-icon">📊</span> 대시보드
+      </div>
+      <div class="nav-item" onclick="showPage('missions')" id="nav-missions">
+        <span class="nav-icon">🎯</span> 미션 관리
+      </div>
+      <div class="nav-item" onclick="showPage('groups')" id="nav-groups">
+        <span class="nav-icon">👥</span> 조 관리
+      </div>
+      <div class="nav-item" onclick="showPage('submissions')" id="nav-submissions">
+        <span class="nav-icon">📋</span> 제출 현황
+      </div>
+    </div>
+    <div id="member-nav" style="display:none">
+      <div class="sidebar-section-label" style="margin-bottom:8px">웰메이트</div>
+      <div class="nav-item active" onclick="showMemberPage('m-dashboard')" id="nav-m-dashboard">
+        <span class="nav-icon">📊</span> 전체 현황
+      </div>
+      <div class="nav-item" onclick="showMemberPage('m-submit')" id="nav-m-submit">
+        <span class="nav-icon">✏️</span> 미션 제출
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- ADMIN PAGES -->
+    <div id="page-dashboard"></div>
+    <div id="page-missions" style="display:none"></div>
+    <div id="page-groups" style="display:none"></div>
+    <div id="page-submissions" style="display:none"></div>
+
+    <!-- MEMBER PAGES -->
+    <div id="page-m-dashboard" style="display:none"></div>
+    <div id="page-m-submit" style="display:none"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://mrdmywosqzaqukdfvbzv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZG15d29zcXphcXVrZGZ2Ynp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NzIzNTksImV4cCI6MjA4OTU0ODM1OX0.D2PKVx9cqyAg-qIpKdtUX9z9AwdjDwNgo6Nsyy4vdNM';
+const ADMIN_PASSWORD = 'kaon2026';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentMode = 'member';
+let currentPage = 'dashboard';
+let currentMemberPage = 'm-dashboard';
+let isAdminAuthed = false;
+
+// ── TOAST ──
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// ── URL 기반 모드 감지 ──
+function detectMode() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('admin')) {
+    document.getElementById('admin-gate').style.display = 'flex';
+    setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
+  } else {
+    applyMode('member');
+  }
+}
+
+function checkAdminPw() {
+  const pw = document.getElementById('admin-pw-input').value;
+  if (pw === ADMIN_PASSWORD) {
+    isAdminAuthed = true;
+    document.getElementById('admin-gate').style.display = 'none';
+    document.getElementById('admin-pw-input').value = '';
+    applyMode('admin');
+  } else {
+    toast('비밀번호가 틀렸습니다.', 'error');
+    document.getElementById('admin-pw-input').value = '';
+    document.getElementById('admin-pw-input').focus();
+  }
+}
+
+function applyMode(mode) {
+  currentMode = mode;
+  const badge = document.getElementById('mode-badge');
+  if (mode === 'admin') {
+    badge.textContent = '어드민';
+    badge.className = 'mode-badge admin';
+  } else {
+    badge.textContent = '조원';
+    badge.className = 'mode-badge member';
+  }
+  document.getElementById('admin-nav').style.display = mode === 'admin' ? '' : 'none';
+  document.getElementById('member-nav').style.display = mode === 'member' ? '' : 'none';
+  ['dashboard','missions','groups','submissions'].forEach(p => document.getElementById('page-'+p).style.display = 'none');
+  ['m-dashboard','m-submit'].forEach(p => document.getElementById('page-'+p).style.display = 'none');
+  if (mode === 'admin') showPage('dashboard');
+  else showMemberPage('m-dashboard');
+}
+
+// ── NAV ──
+function showPage(page) {
+  ['dashboard','missions','groups','submissions'].forEach(p => {
+    document.getElementById('page-'+p).style.display = p === page ? '' : 'none';
+    document.getElementById('nav-'+p)?.classList.toggle('active', p === page);
+  });
+  currentPage = page;
+  renderPage(page);
+}
+
+function showMemberPage(page) {
+  ['m-dashboard','m-submit'].forEach(p => {
+    document.getElementById('page-'+p).style.display = p === page ? '' : 'none';
+    document.getElementById('nav-'+p)?.classList.toggle('active', p === page);
+  });
+  currentMemberPage = page;
+  renderMemberPage(page);
+}
+
+// ── DATA ──
+async function getMissions() {
+  const { data } = await sb.from('missions').select('*').order('created_at');
+  return data || [];
+}
+async function getGroups() {
+  const { data } = await sb.from('groups').select('*').order('created_at');
+  return data || [];
+}
+async function getSubmissions() {
+  const { data } = await sb.from('submissions').select('*').order('submitted_at', { ascending: false });
+  return data || [];
+}
+
+// ── RENDER ADMIN DASHBOARD ──
+async function renderDashboard() {
+  const el = document.getElementById('page-dashboard');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
+
+  const activeGroups = groups.filter(g => submissions.some(s => s.group_id === g.id)).length;
+  const stampsMap = {};
+  const completedMap = {};
+  groups.forEach(g => { stampsMap[g.id] = 0; completedMap[g.id] = new Set(); });
+  submissions.forEach(s => {
+    if (!completedMap[s.group_id]?.has(s.mission_id)) {
+      completedMap[s.group_id]?.add(s.mission_id);
+      const m = missions.find(x => x.id === s.mission_id);
+      stampsMap[s.group_id] = (stampsMap[s.group_id] || 0) + (m?.stamp || 1);
+    }
+  });
+
+  const sorted = [...groups].sort((a,b) => (stampsMap[b.id]||0) - (stampsMap[a.id]||0));
+  const maxStamp = Math.max(...Object.values(stampsMap), 1);
+
+  const lbHTML = sorted.length === 0 ? '<div class="empty">조를 먼저 등록해주세요.</div>' : sorted.map((g, i) => {
+    const stamps = stampsMap[g.id] || 0;
+    const done = completedMap[g.id] || new Set();
+    const pct = Math.round((stamps / maxStamp) * 100);
+    const rankClass = i === 0 ? 'r1 top1' : i === 1 ? 'r2 top2' : '';
+    const rankLabel = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+    const dots = missions.map((m, mi) =>
+      `<div class="dot ${done.has(m.id) ? 'dot-done' : 'dot-empty'}" title="미션${mi+1}: ${m.name}">${mi+1}</div>`
+    ).join('');
+    return `<div class="lb-row ${rankClass}">
+      <div class="lb-rank ${i===0?'r1':i===1?'r2':''}">${rankLabel}</div>
+      <div class="lb-name">${g.name}</div>
+      <div class="lb-dots">${dots}</div>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
+      <div class="lb-stamp">${stamps}스탬프</div>
+    </div>`;
+  }).join('');
+
+  const matrixHTML = missions.map((m, mi) => {
+    const cnt = groups.filter(g => completedMap[g.id]?.has(m.id)).length;
+    const pct = groups.length ? Math.round((cnt / groups.length) * 100) : 0;
+    return `<div class="matrix-row">
+      <div class="matrix-label">미션${mi+1}: ${m.name}</div>
+      <div class="matrix-bar-wrap"><div class="matrix-bar" style="width:${pct}%"></div></div>
+      <div class="matrix-count">${cnt}/${groups.length}조</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="metrics-grid">
+      <div class="metric metric-accent"><div class="metric-val">${missions.length}</div><div class="metric-label">등록 미션</div></div>
+      <div class="metric"><div class="metric-val">${groups.length}</div><div class="metric-label">참여 조</div></div>
+      <div class="metric"><div class="metric-val">${submissions.length}</div><div class="metric-label">총 제출 수</div></div>
+      <div class="metric"><div class="metric-val">${activeGroups}</div><div class="metric-label">활동 중인 조</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 조별 스탬프 순위</div>
+      <div class="lb-list">${lbHTML}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">📈 미션별 완료율</div>
+      ${matrixHTML || '<div class="empty">등록된 미션이 없습니다.</div>'}
+    </div>`;
+}
+
+// ── RENDER MISSIONS ──
+async function renderMissions() {
+  const el = document.getElementById('page-missions');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const missions = await getMissions();
+
+  const listHTML = missions.length === 0 ? '<div class="empty">등록된 미션이 없습니다.</div>' :
+    missions.map((m, i) => `
+      <div class="mission-item">
+        <div class="mission-num">${i+1}</div>
+        <div class="mission-body">
+          <div class="mission-name">${m.name}</div>
+          <div class="mission-meta">
+            <span class="badge badge-gray">${m.week || ''}</span>
+            <span class="badge badge-blue">${m.stamp || 1}스탬프</span>
+            ${m.start_date ? `<span class="badge badge-gray">${m.start_date}${m.end_date?' ~ '+m.end_date:''}</span>` : ''}
+          </div>
+          ${m.description ? `<div class="mission-desc">${m.description}</div>` : ''}
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteMission('${m.id}')">삭제</button>
+      </div>`).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">🎯 새 미션 추가</div>
+      <div class="form-grid col2" style="margin-bottom:10px">
+        <div class="form-group"><label>미션 이름 *</label><input id="m-name" placeholder="예: 첫 만남 런치·커피"></div>
+        <div class="form-group"><label>발송 주차</label><input id="m-week" placeholder="예: 4월 1주차"></div>
+      </div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="form-group"><label>미션 설명</label><textarea id="m-desc" placeholder="미션 상세 내용"></textarea></div>
+      </div>
+      <div class="form-grid col3" style="margin-bottom:14px">
+        <div class="form-group"><label>기본 스탬프</label><input id="m-stamp" type="number" value="1" min="1" max="5"></div>
+        <div class="form-group"><label>시작일</label><input id="m-start" type="date"></div>
+        <div class="form-group"><label>마감일</label><input id="m-end" type="date"></div>
+      </div>
+      <button class="btn btn-primary" onclick="addMission()">+ 미션 추가</button>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 미션 목록 (${missions.length}개)</div>
+      <div class="mission-list">${listHTML}</div>
+    </div>`;
+}
+
+// ── RENDER GROUPS ──
+async function renderGroups() {
+  const el = document.getElementById('page-groups');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const groups = await getGroups();
+
+  const chipsHTML = groups.length === 0 ? '<div class="empty">등록된 조가 없습니다.</div>' :
+    `<div class="group-chips">${groups.map(g =>
+      `<div class="group-chip">${g.name}<span class="chip-del" onclick="deleteGroup('${g.id}')">×</span></div>`
+    ).join('')}</div>`;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">👥 새 조 추가</div>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div class="form-group" style="flex:1"><label>조 이름</label><input id="g-name" placeholder="예: 1조 (김민준·이서연)" onkeydown="if(event.key==='Enter')addGroup()"></div>
+        <button class="btn btn-primary" onclick="addGroup()">+ 추가</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">등록된 조 (${groups.length}개)</div>
+      ${chipsHTML}
+    </div>`;
+}
+
+// ── RENDER SUBMISSIONS ──
+async function renderSubmissions() {
+  const el = document.getElementById('page-submissions');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
+
+  const listHTML = submissions.length === 0 ? '<div class="empty">제출된 내용이 없습니다.</div>' :
+    submissions.map(s => {
+      const m = missions.find(x => x.id === s.mission_id);
+      const g = groups.find(x => x.id === s.group_id);
+      const mi = missions.indexOf(m);
+      return `<div class="sub-card">
+        ${s.image_url ? `<img class="sub-img" src="${s.image_url}">` : '<div class="sub-img-empty">사진<br>없음</div>'}
+        <div class="sub-body">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:600">${g?.name || '알 수 없는 조'}</span>
+            <span class="badge badge-green">미션${mi>=0?mi+1:'?'}: ${m?.name||'삭제된 미션'}</span>
+            <span style="font-size:11px;color:var(--gray-400);margin-left:auto">${s.activity_date || ''}</span>
+          </div>
+          <div style="font-size:12px;color:var(--gray-500)">${s.review || '후기 없음'}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteSubmission('${s.id}')">삭제</button>
+      </div>`;
+    }).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">📋 전체 제출 현황 (${submissions.length}건)</div>
+      ${listHTML}
+    </div>`;
+}
+
+// ── RENDER MEMBER DASHBOARD ──
+async function renderMemberDashboard() {
+  const el = document.getElementById('page-m-dashboard');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
+
+  const stampsMap = {};
+  const completedMap = {};
+  groups.forEach(g => { stampsMap[g.id] = 0; completedMap[g.id] = new Set(); });
+  submissions.forEach(s => {
+    if (!completedMap[s.group_id]?.has(s.mission_id)) {
+      completedMap[s.group_id]?.add(s.mission_id);
+      const m = missions.find(x => x.id === s.mission_id);
+      stampsMap[s.group_id] = (stampsMap[s.group_id] || 0) + (m?.stamp || 1);
+    }
+  });
+
+  const sorted = [...groups].sort((a,b) => (stampsMap[b.id]||0) - (stampsMap[a.id]||0));
+  const maxStamp = Math.max(...Object.values(stampsMap), 1);
+
+  const lbHTML = sorted.length === 0 ? '<div class="empty">조가 등록되지 않았습니다.</div>' : sorted.map((g, i) => {
+    const stamps = stampsMap[g.id] || 0;
+    const done = completedMap[g.id] || new Set();
+    const pct = Math.round((stamps / maxStamp) * 100);
+    const rankLabel = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+    const rankClass = i === 0 ? 'r1 top1' : i === 1 ? 'r2 top2' : '';
+    const dots = missions.map((m, mi) =>
+      `<div class="dot ${done.has(m.id) ? 'dot-done' : 'dot-empty'}" title="미션${mi+1}: ${m.name}">${mi+1}</div>`
+    ).join('');
+    return `<div class="lb-row ${rankClass}">
+      <div class="lb-rank ${i===0?'r1':i===1?'r2':''}">${rankLabel}</div>
+      <div class="lb-name">${g.name}</div>
+      <div class="lb-dots">${dots}</div>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
+      <div class="lb-stamp">${stamps}스탬프</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1A1A1A,#3A3A3A);border-radius:var(--radius);padding:20px;margin-bottom:16px;color:white">
+      <div style="font-size:13px;opacity:.7;margin-bottom:4px">2026 KAON 웰메이트 프로그램</div>
+      <div style="font-size:20px;font-weight:700">동기들과 함께 성장하고 있어요 🚀</div>
+      <div style="font-size:12px;opacity:.6;margin-top:6px">미션을 완료할수록 스탬프가 쌓여요</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 조별 스탬프 순위</div>
+      <div class="lb-list">${lbHTML}</div>
+    </div>`;
+}
+
+// ── RENDER MEMBER SUBMIT ──
+async function renderMemberSubmit() {
+  const el = document.getElementById('page-m-submit');
+  el.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
+
+  const groupOpts = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">✏️ 미션 제출</div>
+      <div class="form-group" style="margin-bottom:14px;max-width:320px">
+        <label>내 조 선택</label>
+        <select id="my-group-sel" onchange="refreshSubmitForm()">
+          <option value="">— 조를 선택하세요 —</option>
+          ${groupOpts}
+        </select>
+      </div>
+      <div id="submit-mission-list"></div>
+    </div>
+    <div class="card" id="submit-form-card" style="display:none">
+      <div class="card-title" id="sf-title">미션 제출</div>
+      <div class="form-grid col2" style="margin-bottom:10px">
+        <div class="form-group"><label>활동 날짜 *</label><input type="date" id="sf-date"></div>
+        <div class="form-group"><label>인증 사진</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="img-upload-box" onclick="document.getElementById('sf-img').click()">+ 사진</div>
+            <img id="sf-img-preview" class="preview-img" style="display:none">
+            <input type="file" id="sf-img" accept="image/*" style="display:none" onchange="handleImgPreview(this)">
+          </div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="form-group"><label>활동 후기</label><textarea id="sf-review" placeholder="미션을 수행하며 느낀 점을 적어주세요!"></textarea></div>
+      </div>
+      <input type="hidden" id="sf-mission-id">
+      <button class="btn btn-primary" onclick="submitMission()">제출하기 ✓</button>
+    </div>
+    <div class="card" id="completed-card" style="display:none">
+      <div class="card-title">✅ 완료한 미션</div>
+      <div id="completed-list"></div>
+    </div>`;
+
+  window._missions = missions;
+  window._submissions = submissions;
+}
+
+window.refreshSubmitForm = function() {
+  const groupId = document.getElementById('my-group-sel').value;
+  const missions = window._missions || [];
+  const submissions = window._submissions || [];
+  if (!groupId) { document.getElementById('submit-mission-list').innerHTML = ''; return; }
+
+  const completedIds = new Set(submissions.filter(s => s.group_id === groupId).map(s => s.mission_id));
+
+  const listHTML = missions.map((m, i) => {
+    const done = completedIds.has(m.id);
+    return `<div class="ms-card ${done ? 'done' : ''}" id="msc-${m.id}" onclick="selectMissionToSubmit('${m.id}','${m.name}')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="mission-num">${i+1}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">${m.name} ${done ? '<span class="badge badge-green" style="font-size:10px">완료</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${m.week||''} · ${m.stamp||1}스탬프${m.description?' · '+m.description:''}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('submit-mission-list').innerHTML = listHTML || '<div class="empty">등록된 미션이 없습니다.</div>';
+  document.getElementById('submit-form-card').style.display = 'none';
+
+  const doneSubs = submissions.filter(s => s.group_id === groupId);
+  if (doneSubs.length > 0) {
+    document.getElementById('completed-card').style.display = '';
+    document.getElementById('completed-list').innerHTML = doneSubs.map(s => {
+      const m = missions.find(x => x.id === s.mission_id);
+      const mi = missions.indexOf(m);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-200)">
+        ${s.image_url ? `<img style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)" src="${s.image_url}">` : ''}
+        <div>
+          <div style="font-size:13px;font-weight:500">미션${mi>=0?mi+1:'?'}: ${m?.name||'삭제됨'}</div>
+          <div style="font-size:12px;color:var(--gray-400)">${s.activity_date||''} · ${s.review||'후기없음'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    document.getElementById('completed-card').style.display = 'none';
+  }
+};
+
+window.selectMissionToSubmit = function(id, name) {
+  document.querySelectorAll('.ms-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById('msc-' + id);
+  if (card) card.classList.add('selected');
+  document.getElementById('sf-mission-id').value = id;
+  document.getElementById('sf-title').textContent = '미션 제출: ' + name;
+  document.getElementById('submit-form-card').style.display = '';
+};
+
+window.handleImgPreview = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const p = document.getElementById('sf-img-preview');
+    p.src = e.target.result;
+    p.style.display = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── CRUD ──
+window.addMission = async function() {
+  const name = document.getElementById('m-name').value.trim();
+  const week = document.getElementById('m-week').value.trim();
+  const desc = document.getElementById('m-desc').value.trim();
+  const stamp = parseInt(document.getElementById('m-stamp').value) || 1;
+  const start = document.getElementById('m-start').value || null;
+  const end = document.getElementById('m-end').value || null;
+  if (!name) { toast('미션 이름을 입력하세요.', 'error'); return; }
+  const { error } = await sb.from('missions').insert({ name, week, description: desc, stamp, start_date: start, end_date: end });
+  if (error) { toast('오류: ' + error.message, 'error'); return; }
+  toast(`미션 "${name}" 추가 완료!`);
+  renderMissions();
+};
+
+window.deleteMission = async function(id) {
+  if (!confirm('이 미션을 삭제하시겠습니까?')) return;
+  await sb.from('submissions').delete().eq('mission_id', id);
+  await sb.from('missions').delete().eq('id', id);
+  toast('미션이 삭제되었습니다.');
+  renderMissions();
+};
+
+window.addGroup = async function() {
+  const name = document.getElementById('g-name').value.trim();
+  if (!name) { toast('조 이름을 입력하세요.', 'error'); return; }
+  const { error } = await sb.from('groups').insert({ name });
+  if (error) { toast(error.message.includes('unique') ? '이미 존재하는 조 이름입니다.' : error.message, 'error'); return; }
+  document.getElementById('g-name').value = '';
+  toast(`"${name}" 추가 완료!`);
+  renderGroups();
+};
+
+window.deleteGroup = async function(id) {
+  if (!confirm('이 조를 삭제하시겠습니까?')) return;
+  await sb.from('submissions').delete().eq('group_id', id);
+  await sb.from('groups').delete().eq('id', id);
+  toast('조가 삭제되었습니다.');
+  renderGroups();
+};
+
+window.deleteSubmission = async function(id) {
+  if (!confirm('이 제출을 삭제하시겠습니까?')) return;
+  await sb.from('submissions').delete().eq('id', id);
+  toast('제출이 삭제되었습니다.');
+  renderSubmissions();
+};
+
+window.submitMission = async function() {
+  const groupId = document.getElementById('my-group-sel').value;
+  const missionId = document.getElementById('sf-mission-id').value;
+  const date = document.getElementById('sf-date').value;
+  const review = document.getElementById('sf-review').value.trim();
+  const imgInput = document.getElementById('sf-img');
+
+  if (!groupId) { toast('조를 선택하세요.', 'error'); return; }
+  if (!missionId) { toast('미션을 선택하세요.', 'error'); return; }
+  if (!date) { toast('활동 날짜를 입력하세요.', 'error'); return; }
+
+  const existing = (window._submissions || []).find(s => s.group_id === groupId && s.mission_id === missionId);
+  if (existing) { toast('이미 완료된 미션입니다.', 'error'); return; }
+
+  let imageUrl = null;
+  if (imgInput.files && imgInput.files[0]) {
+    const file = imgInput.files[0];
+    const ext = file.name.split('.').pop();
+    const path = `${groupId}/${missionId}-${Date.now()}.${ext}`;
+    const { data: upData, error: upErr } = await sb.storage.from('mission-images').upload(path, file);
+    if (!upErr && upData) {
+      const { data: urlData } = sb.storage.from('mission-images').getPublicUrl(path);
+      imageUrl = urlData?.publicUrl || null;
+    }
+  }
+
+  const { error } = await sb.from('submissions').insert({ group_id: groupId, mission_id: missionId, activity_date: date, review, image_url: imageUrl });
+  if (error) { toast('오류: ' + error.message, 'error'); return; }
+
+  toast('미션 제출 완료! 스탬프를 획득했어요 🎉');
+  document.getElementById('sf-date').value = '';
+  document.getElementById('sf-review').value = '';
+  document.getElementById('sf-img').value = '';
+  document.getElementById('sf-img-preview').style.display = 'none';
+  document.getElementById('submit-form-card').style.display = 'none';
+  await renderMemberSubmit();
+  window.refreshSubmitForm();
+};
+
+// ── ROUTER ──
+function renderPage(page) {
+  if (page === 'dashboard') renderDashboard();
+  else if (page === 'missions') renderMissions();
+  else if (page === 'groups') renderGroups();
+  else if (page === 'submissions') renderSubmissions();
+}
+
+function renderMemberPage(page) {
+  if (page === 'm-dashboard') renderMemberDashboard();
+  else if (page === 'm-submit') renderMemberSubmit();
+}
+
+// ── INIT ──
+detectMode();
+</script>
+</body>
+</html>
