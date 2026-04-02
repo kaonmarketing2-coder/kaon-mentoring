@@ -858,36 +858,47 @@ async function renderMemberSubmit() {
     </div>
     <div class="card" id="submit-form-card" style="display:none">
       <div class="card-title" id="sf-title">미션 제출</div>
-      <div class="form-grid col2" style="margin-bottom:12px">
-        <div class="form-group"><label>활동 날짜 *</label><input type="date" id="sf-date"></div>
-        <div class="form-group"><label>인증 사진 <span style="color:var(--gray-400);font-weight:400">(선택)</span></label>
-          <div class="file-upload-area" id="img-upload-area" onclick="document.getElementById('sf-img').click()">
-            <div class="file-upload-icon">🖼️</div>
-            <div class="file-upload-text" id="img-upload-text"><span>사진 선택</span><br>JPG, PNG, GIF 등 이미지</div>
+
+      <!-- 활동 날짜 단독 -->
+      <div class="form-group" style="margin-bottom:16px;max-width:280px">
+        <label>활동 날짜 *</label>
+        <input type="date" id="sf-date">
+      </div>
+
+      <!-- 첨부 파일 영역: 사진 + 문서 가로 나란히 -->
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--gray-500);margin-bottom:8px">첨부 파일 <span style="color:var(--gray-400);font-weight:400">(선택)</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0">
+            <div class="file-upload-area" id="img-upload-area" onclick="document.getElementById('sf-img').click()">
+              <div class="file-upload-icon">🖼️</div>
+              <div class="file-upload-text" id="img-upload-text"><span>인증 사진</span><br>JPG, PNG, GIF 등</div>
+            </div>
+            <input type="file" id="sf-img" accept="image/*" style="display:none" onchange="handleImgSelect(this)">
+            <img id="sf-img-preview" class="preview-img" style="display:none;margin-top:8px;width:100%;height:80px;object-fit:cover">
           </div>
-          <input type="file" id="sf-img" accept="image/*" style="display:none" onchange="handleImgSelect(this)">
-          <img id="sf-img-preview" class="preview-img" style="display:none;margin-top:8px">
+          <div class="form-group" style="margin:0">
+            <div class="file-upload-area" id="doc-upload-area" onclick="document.getElementById('sf-doc').click()">
+              <div class="file-upload-icon">📎</div>
+              <div class="file-upload-text" id="doc-upload-text"><span>문서 파일</span><br>PDF, DOCX, XLSX 등</div>
+            </div>
+            <input type="file" id="sf-doc" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" style="display:none" onchange="handleDocSelect(this)">
+          </div>
         </div>
       </div>
-      <div class="form-grid" style="margin-bottom:12px">
-        <div class="form-group"><label>첨부 파일 <span style="color:var(--gray-400);font-weight:400">(선택 · PDF·Word·Excel 등)</span></label>
-          <div class="file-upload-area" id="doc-upload-area" onclick="document.getElementById('sf-doc').click()">
-            <div class="file-upload-icon">📎</div>
-            <div class="file-upload-text" id="doc-upload-text"><span>파일 선택</span><br>PDF, DOCX, XLSX, PPT 등</div>
-          </div>
-          <input type="file" id="sf-doc" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" style="display:none" onchange="handleDocSelect(this)">
-        </div>
-      </div>
-      <div class="form-grid" style="margin-bottom:14px">
+
+      <!-- 활동 후기 -->
+      <div class="form-grid" style="margin-bottom:16px">
         <div class="form-group">
           <label style="display:flex;justify-content:space-between;align-items:center">
-            <span>활동 후기 * <span style="color:var(--gray-400);font-weight:400">(100자 이상)</span></span>
-            <span id="review-counter" style="font-size:11px;font-weight:600;color:var(--gray-400)">0 / 100</span>
+            <span>활동 후기 * <span style="color:var(--gray-400);font-weight:400">(30자 이상)</span></span>
+            <span id="review-counter" style="font-size:11px;font-weight:600;color:var(--gray-400)">0 / 30</span>
           </label>
-          <textarea id="sf-review" placeholder="미션을 수행하며 느낀 점을 적어주세요! (최소 100자)" oninput="updateReviewCounter()" style="min-height:90px"></textarea>
-          <div id="review-hint" style="font-size:11px;color:var(--gray-400);margin-top:4px">아직 100자가 되지 않았어요.</div>
+          <textarea id="sf-review" placeholder="미션을 수행하며 느낀 점을 적어주세요! (최소 30자)" oninput="updateReviewCounter()" style="min-height:90px"></textarea>
+          <div id="review-hint" style="font-size:11px;color:var(--gray-400);margin-top:4px">아직 30자가 되지 않았어요.</div>
         </div>
       </div>
+
       <input type="hidden" id="sf-mission-id">
       <button class="btn btn-primary" onclick="submitMission()">제출하기 ✓</button>
     </div>
@@ -1004,14 +1015,14 @@ window.updateReviewCounter = function() {
   const len = val.length;
   const counter = document.getElementById('review-counter');
   const hint = document.getElementById('review-hint');
-  counter.textContent = `${len} / 100`;
-  if (len >= 100) {
+  counter.textContent = `${len} / 30`;
+  if (len >= 30) {
     counter.style.color = 'var(--green)';
     hint.style.display = 'none';
   } else {
-    counter.style.color = len >= 70 ? 'var(--primary)' : 'var(--gray-400)';
+    counter.style.color = len >= 20 ? 'var(--primary)' : 'var(--gray-400)';
     hint.style.display = '';
-    hint.textContent = `${100 - len}자 더 작성해주세요.`;
+    hint.textContent = `${30 - len}자 더 작성해주세요.`;
   }
 };
 
@@ -1083,8 +1094,8 @@ window.submitMission = async function() {
   if (existing) { toast('이미 완료된 미션입니다.', 'error'); return; }
 
   // 후기 100자 검증
-  if (review.length < 100) {
-    toast(`활동 후기를 ${100 - review.length}자 더 작성해주세요. (현재 ${review.length}자)`, 'error');
+  if (review.length < 30) {
+    toast(`활동 후기를 ${30 - review.length}자 더 작성해주세요. (현재 ${review.length}자)`, 'error');
     document.getElementById('sf-review').focus();
     return;
   }
@@ -1158,8 +1169,8 @@ window.submitMission = async function() {
   document.getElementById('sf-review').value = '';
   const counter = document.getElementById('review-counter');
   const hint = document.getElementById('review-hint');
-  if (counter) { counter.textContent = '0 / 100'; counter.style.color = 'var(--gray-400)'; }
-  if (hint) { hint.style.display = ''; hint.textContent = '아직 100자가 되지 않았어요.'; }
+  if (counter) { counter.textContent = '0 / 30'; counter.style.color = 'var(--gray-400)'; }
+  if (hint) { hint.style.display = ''; hint.textContent = '아직 30자가 되지 않았어요.'; }
   document.getElementById('submit-form-card').style.display = 'none';
   await renderMemberSubmit();
   window.refreshSubmitForm();
