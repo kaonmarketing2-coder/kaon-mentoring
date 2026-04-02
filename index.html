@@ -614,9 +614,9 @@ async function renderMissions() {
 
   const listHTML = missions.length === 0 ? '<div class="empty">등록된 미션이 없습니다.</div>' :
     missions.map((m, i) => `
-      <div class="mission-item">
+      <div class="mission-item" id="mi-${m.id}">
         <div class="mission-num">${i+1}</div>
-        <div class="mission-body">
+        <div class="mission-body" id="mb-view-${m.id}">
           <div class="mission-name">${m.name}</div>
           <div class="mission-meta">
             <span class="badge badge-gray">${m.week || ''}</span>
@@ -625,7 +625,28 @@ async function renderMissions() {
           </div>
           ${m.description ? `<div class="mission-desc">${m.description}</div>` : ''}
         </div>
-        <button class="btn btn-danger btn-sm" onclick="deleteMission('${m.id}')">삭제</button>
+        <div class="mission-body" id="mb-edit-${m.id}" style="display:none">
+          <div class="form-grid col2" style="margin-bottom:8px">
+            <div class="form-group"><label>미션 이름</label><input id="edit-name-${m.id}" value="${m.name.replace(/"/g,'&quot;')}"></div>
+            <div class="form-group"><label>발송 주차</label><input id="edit-week-${m.id}" value="${(m.week||'').replace(/"/g,'&quot;')}"></div>
+          </div>
+          <div class="form-grid" style="margin-bottom:8px">
+            <div class="form-group"><label>미션 설명</label><textarea id="edit-desc-${m.id}">${m.description||''}</textarea></div>
+          </div>
+          <div class="form-grid col3" style="margin-bottom:8px">
+            <div class="form-group"><label>스탬프</label><input type="number" id="edit-stamp-${m.id}" value="${m.stamp||1}" min="1" max="5"></div>
+            <div class="form-group"><label>시작일</label><input type="date" id="edit-start-${m.id}" value="${m.start_date||''}"></div>
+            <div class="form-group"><label>마감일</label><input type="date" id="edit-end-${m.id}" value="${m.end_date||''}"></div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary btn-sm" onclick="saveMission('${m.id}')">저장</button>
+            <button class="btn btn-secondary btn-sm" onclick="cancelEditMission('${m.id}')">취소</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-secondary btn-sm" id="edit-btn-${m.id}" onclick="startEditMission('${m.id}')">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteMission('${m.id}')">삭제</button>
+        </div>
       </div>`).join('');
 
   el.innerHTML = `
@@ -1038,6 +1059,36 @@ window.addMission = async function() {
   const { error } = await sb.from('missions').insert({ name, week, description: desc, stamp, start_date: start, end_date: end });
   if (error) { toast('오류: ' + error.message, 'error'); return; }
   toast(`미션 "${name}" 추가 완료!`);
+  renderMissions();
+};
+
+
+// ── 미션 수정 ──
+window.startEditMission = function(id) {
+  document.getElementById('mb-view-'+id).style.display = 'none';
+  document.getElementById('mb-edit-'+id).style.display = '';
+  document.getElementById('edit-btn-'+id).style.display = 'none';
+};
+
+window.cancelEditMission = function(id) {
+  document.getElementById('mb-view-'+id).style.display = '';
+  document.getElementById('mb-edit-'+id).style.display = 'none';
+  document.getElementById('edit-btn-'+id).style.display = '';
+};
+
+window.saveMission = async function(id) {
+  const name  = document.getElementById('edit-name-'+id).value.trim();
+  const week  = document.getElementById('edit-week-'+id).value.trim();
+  const desc  = document.getElementById('edit-desc-'+id).value.trim();
+  const stamp = parseInt(document.getElementById('edit-stamp-'+id).value) || 1;
+  const start = document.getElementById('edit-start-'+id).value || null;
+  const end   = document.getElementById('edit-end-'+id).value || null;
+  if (!name) { toast('미션 이름을 입력하세요.', 'error'); return; }
+  const { error } = await sb.from('missions').update({
+    name, week, description: desc, stamp, start_date: start, end_date: end
+  }).eq('id', id);
+  if (error) { toast('수정 실패: ' + error.message, 'error'); return; }
+  toast('미션이 수정되었습니다.');
   renderMissions();
 };
 
