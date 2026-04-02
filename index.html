@@ -241,6 +241,13 @@
   .ms-card.done { opacity: 0.5; cursor: default; pointer-events: none; }
   .img-upload-box { width: 64px; height: 64px; border: 1.5px dashed var(--gray-300); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
   .img-upload-box:hover { border-color: var(--primary); color: var(--primary); }
+  .file-upload-area { border: 1.5px dashed var(--gray-300); border-radius: var(--radius-sm); padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; background: var(--gray-50); transition: all .15s; }
+  .file-upload-area:hover { border-color: var(--primary); background: var(--primary-light); }
+  .file-upload-icon { font-size: 20px; flex-shrink: 0; }
+  .file-upload-text { font-size: 12px; color: var(--gray-500); }
+  .file-upload-text span { font-weight: 600; color: var(--primary); }
+  .file-attached { background: var(--green-light); border-color: var(--green); }
+  .file-attached .file-upload-text { color: var(--green); }
   .preview-img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); }
 
   /* MATRIX */
@@ -695,7 +702,11 @@ async function renderSubmissions() {
       const g = groups.find(x => x.id === s.group_id);
       const mi = missions.indexOf(m);
       return `<div class="sub-card">
-        ${s.image_url ? `<img class="sub-img" src="${s.image_url}" style="cursor:pointer" onclick="window.open('${s.image_url}','_blank')">` : '<div class="sub-img-empty">사진<br>없음</div>'}
+        ${s.image_url
+          ? (s.image_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+              ? `<img class="sub-img" src="${s.image_url}" style="cursor:pointer" onclick="window.open('${s.image_url}','_blank')">`
+              : `<div class="sub-img-empty" style="cursor:pointer;background:var(--primary-light);border-color:var(--primary)" onclick="window.open('${s.image_url}','_blank')">📎<br>파일</div>`)
+          : '<div class="sub-img-empty">없음</div>'}
         <div class="sub-body">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:600">${g?.name || '알 수 없는 조'}</span>
@@ -703,7 +714,8 @@ async function renderSubmissions() {
             <span style="font-size:11px;color:var(--gray-400);margin-left:auto">${s.activity_date || ''}</span>
           </div>
           <div style="font-size:12px;color:var(--gray-500)">${s.review || '후기 없음'}</div>
-          ${s.image_url ? `<div style="margin-top:5px"><a href="${s.image_url}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none;font-weight:500">🔗 사진 원본 보기</a></div>` : ''}
+          ${s.image_url ? `<div style="margin-top:4px"><a href="${s.image_url}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none;font-weight:500">🖼️ 사진 보기</a></div>` : ''}
+          ${s.doc_url ? `<div style="margin-top:4px"><a href="${s.doc_url}" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none;font-weight:500">📎 첨부파일 보기</a></div>` : ''}
         </div>
         <button class="btn btn-danger btn-sm" onclick="deleteSubmission('${s.id}')">삭제</button>
       </div>`;
@@ -727,7 +739,7 @@ window.exportToCSV = function() {
   if (!submissions || submissions.length === 0) { toast('내보낼 데이터가 없습니다.', 'error'); return; }
 
   const BOM = '\uFEFF'; // 한글 깨짐 방지
-  const headers = ['조 이름', '미션 번호', '미션 이름', '활동 날짜', '후기', '사진 URL', '제출 일시'];
+  const headers = ['조 이름', '미션 번호', '미션 이름', '활동 날짜', '후기', '사진 URL', '첨부파일 URL', '제출 일시'];
 
   const rows = submissions.map(s => {
     const m = missions.find(x => x.id === s.mission_id);
@@ -741,6 +753,7 @@ window.exportToCSV = function() {
       escape(s.activity_date || ''),
       escape(s.review || ''),
       escape(s.image_url || ''),
+      escape(s.doc_url || ''),
       escape(s.submitted_at ? new Date(s.submitted_at).toLocaleString('ko-KR') : ''),
     ].join(',');
   });
@@ -845,18 +858,35 @@ async function renderMemberSubmit() {
     </div>
     <div class="card" id="submit-form-card" style="display:none">
       <div class="card-title" id="sf-title">미션 제출</div>
-      <div class="form-grid col2" style="margin-bottom:10px">
+      <div class="form-grid col2" style="margin-bottom:12px">
         <div class="form-group"><label>활동 날짜 *</label><input type="date" id="sf-date"></div>
-        <div class="form-group"><label>인증 사진</label>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="img-upload-box" onclick="document.getElementById('sf-img').click()">+ 사진</div>
-            <img id="sf-img-preview" class="preview-img" style="display:none">
-            <input type="file" id="sf-img" accept="image/*" style="display:none" onchange="handleImgPreview(this)">
+        <div class="form-group"><label>인증 사진 <span style="color:var(--gray-400);font-weight:400">(선택)</span></label>
+          <div class="file-upload-area" id="img-upload-area" onclick="document.getElementById('sf-img').click()">
+            <div class="file-upload-icon">🖼️</div>
+            <div class="file-upload-text" id="img-upload-text"><span>사진 선택</span><br>JPG, PNG, GIF 등 이미지</div>
           </div>
+          <input type="file" id="sf-img" accept="image/*" style="display:none" onchange="handleImgSelect(this)">
+          <img id="sf-img-preview" class="preview-img" style="display:none;margin-top:8px">
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group"><label>첨부 파일 <span style="color:var(--gray-400);font-weight:400">(선택 · PDF·Word·Excel 등)</span></label>
+          <div class="file-upload-area" id="doc-upload-area" onclick="document.getElementById('sf-doc').click()">
+            <div class="file-upload-icon">📎</div>
+            <div class="file-upload-text" id="doc-upload-text"><span>파일 선택</span><br>PDF, DOCX, XLSX, PPT 등</div>
+          </div>
+          <input type="file" id="sf-doc" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" style="display:none" onchange="handleDocSelect(this)">
         </div>
       </div>
       <div class="form-grid" style="margin-bottom:14px">
-        <div class="form-group"><label>활동 후기</label><textarea id="sf-review" placeholder="미션을 수행하며 느낀 점을 적어주세요!"></textarea></div>
+        <div class="form-group">
+          <label style="display:flex;justify-content:space-between;align-items:center">
+            <span>활동 후기 * <span style="color:var(--gray-400);font-weight:400">(100자 이상)</span></span>
+            <span id="review-counter" style="font-size:11px;font-weight:600;color:var(--gray-400)">0 / 100</span>
+          </label>
+          <textarea id="sf-review" placeholder="미션을 수행하며 느낀 점을 적어주세요! (최소 100자)" oninput="updateReviewCounter()" style="min-height:90px"></textarea>
+          <div id="review-hint" style="font-size:11px;color:var(--gray-400);margin-top:4px">아직 100자가 되지 않았어요.</div>
+        </div>
       </div>
       <input type="hidden" id="sf-mission-id">
       <button class="btn btn-primary" onclick="submitMission()">제출하기 ✓</button>
@@ -942,16 +972,47 @@ window.selectMissionToSubmit = function(id, name) {
   document.getElementById('submit-form-card').style.display = '';
 };
 
-window.handleImgPreview = function(input) {
+// 사진 선택 핸들러
+window.handleImgSelect = function(input) {
   const file = input.files[0];
   if (!file) return;
+  const area = document.getElementById('img-upload-area');
+  const text = document.getElementById('img-upload-text');
+  const preview = document.getElementById('sf-img-preview');
+  const sizeTxt = file.size > 1024*1024 ? `${(file.size/1024/1024).toFixed(1)}MB` : `${(file.size/1024).toFixed(0)}KB`;
+  text.innerHTML = `<span style="color:var(--green);font-weight:600">✓ ${file.name}</span><br><span style="color:var(--gray-400)">${sizeTxt}</span>`;
+  area.classList.add('file-attached');
   const reader = new FileReader();
-  reader.onload = e => {
-    const p = document.getElementById('sf-img-preview');
-    p.src = e.target.result;
-    p.style.display = '';
-  };
+  reader.onload = e => { preview.src = e.target.result; preview.style.display = ''; };
   reader.readAsDataURL(file);
+};
+
+// 문서 선택 핸들러
+window.handleDocSelect = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const area = document.getElementById('doc-upload-area');
+  const text = document.getElementById('doc-upload-text');
+  const sizeTxt = file.size > 1024*1024 ? `${(file.size/1024/1024).toFixed(1)}MB` : `${(file.size/1024).toFixed(0)}KB`;
+  text.innerHTML = `<span style="color:var(--green);font-weight:600">✓ ${file.name}</span><br><span style="color:var(--gray-400)">${sizeTxt}</span>`;
+  area.classList.add('file-attached');
+};
+
+// 후기 글자수 카운터
+window.updateReviewCounter = function() {
+  const val = document.getElementById('sf-review').value;
+  const len = val.length;
+  const counter = document.getElementById('review-counter');
+  const hint = document.getElementById('review-hint');
+  counter.textContent = `${len} / 100`;
+  if (len >= 100) {
+    counter.style.color = 'var(--green)';
+    hint.style.display = 'none';
+  } else {
+    counter.style.color = len >= 70 ? 'var(--primary)' : 'var(--gray-400)';
+    hint.style.display = '';
+    hint.textContent = `${100 - len}자 더 작성해주세요.`;
+  }
 };
 
 // ── CRUD ──
@@ -1014,14 +1075,19 @@ window.submitMission = async function() {
   const missionId = document.getElementById('sf-mission-id').value;
   const date = document.getElementById('sf-date').value;
   const review = document.getElementById('sf-review').value.trim();
-  const imgInput = document.getElementById('sf-img');
-
   if (!groupId) { toast('조를 선택하세요.', 'error'); return; }
   if (!missionId) { toast('미션을 선택하세요.', 'error'); return; }
   if (!date) { toast('활동 날짜를 입력하세요.', 'error'); return; }
 
   const existing = (window._submissions || []).find(s => s.group_id === groupId && s.mission_id === missionId);
   if (existing) { toast('이미 완료된 미션입니다.', 'error'); return; }
+
+  // 후기 100자 검증
+  if (review.length < 100) {
+    toast(`활동 후기를 ${100 - review.length}자 더 작성해주세요. (현재 ${review.length}자)`, 'error');
+    document.getElementById('sf-review').focus();
+    return;
+  }
 
   // ── 마감일 경고 체크 ──
   const mission = (window._missions || []).find(m => m.id === missionId);
@@ -1038,18 +1104,41 @@ window.submitMission = async function() {
   }
 
   let imageUrl = null;
+  const imgInput = document.getElementById('sf-img');
   if (imgInput.files && imgInput.files[0]) {
     const file = imgInput.files[0];
     const ext = file.name.split('.').pop();
-    const path = `${groupId}/${missionId}-${Date.now()}.${ext}`;
-    const { data: upData, error: upErr } = await sb.storage.from('mission-images').upload(path, file);
-    if (!upErr && upData) {
+    const path = `img/${groupId}/${missionId}-${Date.now()}.${ext}`;
+    const { data: upData, error: upErr } = await sb.storage.from('mission-images').upload(path, file, { contentType: file.type });
+    if (upErr) {
+      toast('사진 업로드 실패: ' + upErr.message, 'error');
+      return;
+    }
+    if (upData) {
       const { data: urlData } = sb.storage.from('mission-images').getPublicUrl(path);
       imageUrl = urlData?.publicUrl || null;
     }
   }
 
-  const { error } = await sb.from('submissions').insert({ group_id: groupId, mission_id: missionId, activity_date: date, review, image_url: imageUrl });
+  // 문서 파일 업로드
+  let docUrl = null;
+  const docInput = document.getElementById('sf-doc');
+  if (docInput.files && docInput.files[0]) {
+    const file = docInput.files[0];
+    const ext = file.name.split('.').pop();
+    const path = `doc/${groupId}/${missionId}-${Date.now()}.${ext}`;
+    const { data: upData, error: upErr } = await sb.storage.from('mission-images').upload(path, file, { contentType: file.type });
+    if (upErr) {
+      toast('파일 업로드 실패: ' + upErr.message, 'error');
+      return;
+    }
+    if (upData) {
+      const { data: urlData } = sb.storage.from('mission-images').getPublicUrl(path);
+      docUrl = urlData?.publicUrl || null;
+    }
+  }
+
+  const { error } = await sb.from('submissions').insert({ group_id: groupId, mission_id: missionId, activity_date: date, review, image_url: imageUrl, doc_url: docUrl });
   if (error) { toast('오류: ' + error.message, 'error'); return; }
 
   toast('미션 제출 완료! 스탬프를 획득했어요 🎉');
@@ -1057,6 +1146,20 @@ window.submitMission = async function() {
   document.getElementById('sf-review').value = '';
   document.getElementById('sf-img').value = '';
   document.getElementById('sf-img-preview').style.display = 'none';
+  document.getElementById('sf-doc').value = '';
+  const imgArea = document.getElementById('img-upload-area');
+  const imgText = document.getElementById('img-upload-text');
+  const docArea = document.getElementById('doc-upload-area');
+  const docText = document.getElementById('doc-upload-text');
+  if (imgArea) imgArea.classList.remove('file-attached');
+  if (imgText) imgText.innerHTML = '<span>사진 선택</span><br>JPG, PNG, GIF 등 이미지';
+  if (docArea) docArea.classList.remove('file-attached');
+  if (docText) docText.innerHTML = '<span>파일 선택</span><br>PDF, DOCX, XLSX, PPT 등';
+  document.getElementById('sf-review').value = '';
+  const counter = document.getElementById('review-counter');
+  const hint = document.getElementById('review-hint');
+  if (counter) { counter.textContent = '0 / 100'; counter.style.color = 'var(--gray-400)'; }
+  if (hint) { hint.style.display = ''; hint.textContent = '아직 100자가 되지 않았어요.'; }
   document.getElementById('submit-form-card').style.display = 'none';
   await renderMemberSubmit();
   window.refreshSubmitForm();
