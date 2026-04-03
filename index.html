@@ -494,10 +494,10 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
   // 총 노드 수 N에 따라 COL 결정: 화면에 자연스럽게 맞도록
   const COL = N <= 6 ? N : N <= 12 ? Math.ceil(N / 2) : N <= 20 ? Math.ceil(N / 3) : N <= 30 ? Math.ceil(N / 4) : Math.ceil(N / 5);
 
-  const R = 26;         // 노드 반지름
-  const HGAP = 90;      // 수평 간격 (노드 중심 간)
-  const VGAP = 100;     // 수직 간격 (행 간)
-  const PX = 55, PY = 50;
+  const R = 20;         // 노드 반지름
+  const HGAP = 70;      // 수평 간격 (노드 중심 간)
+  const VGAP = 80;      // 수직 간격 (행 간)
+  const PX = 45, PY = 40;
 
   const rows = Math.ceil(N / COL);
   const rowCounts = [];
@@ -608,7 +608,7 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
   });
 
   const svgHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;text-align:center;">
-    <svg viewBox="0 0 ${svgW} ${svgH}" style="display:inline-block;min-width:${Math.min(svgW,860)}px;max-width:100%;height:auto;">
+    <svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="display:inline-block;max-width:100%;">
       ${pathsSVG}${arrowsSVG}${nodesSVG}
     </svg>
   </div>`;
