@@ -607,8 +607,8 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
     }
   });
 
-  const svgHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <svg viewBox="0 0 ${svgW} ${svgH}" style="display:block;min-width:${svgW}px;height:${svgH}px;">
+  const svgHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;text-align:center;">
+    <svg viewBox="0 0 ${svgW} ${svgH}" style="display:inline-block;min-width:${Math.min(svgW,860)}px;max-width:100%;height:auto;">
       ${pathsSVG}${arrowsSVG}${nodesSVG}
     </svg>
   </div>`;
