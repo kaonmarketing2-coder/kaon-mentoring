@@ -230,6 +230,16 @@
 
   /* SUBMISSIONS */
   .sub-card { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: white; margin-bottom: 8px; }
+  .sub-card.rejected { border-left: 4px solid #DC2626; background: #FFF8F8; }
+  .sub-card.approved { border-left: 4px solid var(--green); }
+  .badge-pending  { background: #FFF3EB; color: var(--primary); }
+  .badge-approved { background: var(--green-light); color: var(--green); }
+  .badge-rejected { background: #FEF2F2; color: #DC2626; }
+  .reject-reason-box { background: #FEF2F2; border: 1px solid #FECACA; border-radius: var(--radius-sm); padding: 8px 12px; margin-top:8px; font-size:12px; color:#DC2626; }
+  .reject-modal-bg { position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:999; }
+  .reject-modal { background:white;border-radius:var(--radius);padding:24px;width:420px;max-width:90vw; }
+  .reject-modal-title { font-size:15px;font-weight:700;margin-bottom:12px; }
+  .reject-modal-sub { font-size:12px;color:var(--gray-500);margin-bottom:12px; }
   .sub-img { width: 56px; height: 56px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; border: 1px solid var(--gray-200); }
   .sub-img-empty { width: 56px; height: 56px; background: var(--gray-100); border-radius: var(--radius-sm); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--gray-400); text-align: center; }
   .sub-body { flex: 1; min-width: 0; }
@@ -713,32 +723,40 @@ async function renderSubmissions() {
   const el = document.getElementById('page-submissions');
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
   const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
-
-  // 전역 저장 (엑셀 내보내기에서 사용)
   window._exportData = { missions, groups, submissions };
+
+  const statusLabel = { pending:'검토중', approved:'승인', rejected:'반려' };
+  const statusBadge = { pending:'badge-pending', approved:'badge-approved', rejected:'badge-rejected' };
 
   const listHTML = submissions.length === 0 ? '<div class="empty">제출된 내용이 없습니다.</div>' :
     submissions.map(s => {
       const m = missions.find(x => x.id === s.mission_id);
       const g = groups.find(x => x.id === s.group_id);
       const mi = missions.indexOf(m);
-      return `<div class="sub-card">
+      const st = s.status || 'pending';
+      return `<div class="sub-card ${st === 'rejected' ? 'rejected' : st === 'approved' ? 'approved' : ''}">
         ${s.image_url
           ? (s.image_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
               ? `<img class="sub-img" src="${s.image_url}" style="cursor:pointer" onclick="window.open('${s.image_url}','_blank')">`
               : `<div class="sub-img-empty" style="cursor:pointer;background:var(--primary-light);border-color:var(--primary)" onclick="window.open('${s.image_url}','_blank')">📎<br>파일</div>`)
           : '<div class="sub-img-empty">없음</div>'}
-        <div class="sub-body">
+        <div class="sub-body" style="flex:1">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:600">${g?.name || '알 수 없는 조'}</span>
             <span class="badge badge-green">미션${mi>=0?mi+1:'?'}: ${m?.name||'삭제된 미션'}</span>
+            <span class="badge ${statusBadge[st]}">${statusLabel[st]}</span>
             <span style="font-size:11px;color:var(--gray-400);margin-left:auto">${s.activity_date || ''}</span>
           </div>
-          <div style="font-size:12px;color:var(--gray-500)">${s.review || '후기 없음'}</div>
-          ${s.image_url ? `<div style="margin-top:4px"><a href="${s.image_url}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none;font-weight:500">🖼️ 사진 보기</a></div>` : ''}
-          ${s.doc_url ? `<div style="margin-top:4px"><a href="${s.doc_url}" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none;font-weight:500">📎 첨부파일 보기</a></div>` : ''}
+          <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">${s.review || '후기 없음'}</div>
+          ${s.image_url ? `<a href="${s.image_url}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none;font-weight:500;margin-right:10px">🖼️ 사진 보기</a>` : ''}
+          ${s.doc_url ? `<a href="${s.doc_url}" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none;font-weight:500">📎 첨부파일 보기</a>` : ''}
+          ${st === 'rejected' && s.reject_reason ? `<div class="reject-reason-box">반려 사유: ${s.reject_reason}</div>` : ''}
         </div>
-        <button class="btn btn-danger btn-sm" onclick="deleteSubmission('${s.id}')">삭제</button>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+          ${st !== 'approved' ? `<button class="btn btn-success btn-sm" onclick="approveSubmission('${s.id}')">✓ 승인</button>` : ''}
+          ${st !== 'rejected' ? `<button class="btn btn-sm" style="background:#FEF2F2;color:#DC2626;border-color:#FECACA" onclick="openRejectModal('${s.id}')">✕ 반려</button>` : `<button class="btn btn-sm" style="background:#FEF2F2;color:#DC2626;border-color:#FECACA" onclick="openRejectModal('${s.id}')">사유 수정</button>`}
+          <button class="btn btn-danger btn-sm" onclick="deleteSubmission('${s.id}')">삭제</button>
+        </div>
       </div>`;
     }).join('');
 
@@ -746,11 +764,24 @@ async function renderSubmissions() {
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div class="card-title" style="margin-bottom:0">📋 전체 제출 현황 (${submissions.length}건)</div>
-        <button class="btn btn-secondary" onclick="exportToCSV()" style="display:flex;align-items:center;gap:6px;font-weight:600;border-color:var(--primary);color:var(--primary)">
-          ⬇ 엑셀 내보내기
-        </button>
+        <button class="btn btn-secondary" onclick="exportToCSV()" style="font-weight:600;border-color:var(--primary);color:var(--primary)">⬇ 엑셀 내보내기</button>
       </div>
       ${listHTML}
+    </div>
+    <div id="reject-modal-wrap" style="display:none">
+      <div class="reject-modal-bg" onclick="if(event.target===this)closeRejectModal()">
+        <div class="reject-modal">
+          <div class="reject-modal-title">반려 사유 입력</div>
+          <div class="reject-modal-sub">조원에게 표시될 반려 사유를 입력해주세요.</div>
+          <div class="form-group" style="margin-bottom:14px">
+            <textarea id="reject-reason-input" placeholder="예: 인증샷이 미션과 관련 없습니다. 다시 제출해주세요." style="min-height:80px"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="closeRejectModal()">취소</button>
+            <button class="btn btn-sm" style="background:#DC2626;color:white;border-color:#DC2626;padding:8px 16px;font-size:13px" onclick="confirmReject()">반려 확정</button>
+          </div>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -938,7 +969,10 @@ window.refreshSubmitForm = function() {
   const submissions = window._submissions || [];
   if (!groupId) { document.getElementById('submit-mission-list').innerHTML = ''; return; }
 
-  const completedIds = new Set(submissions.filter(s => s.group_id === groupId).map(s => s.mission_id));
+  // 반려된 미션은 재제출 가능하도록 제외
+  const completedIds = new Set(
+    submissions.filter(s => s.group_id === groupId && (s.status || 'pending') !== 'rejected').map(s => s.mission_id)
+  );
   const today = new Date(); today.setHours(0,0,0,0);
 
   const listHTML = missions.map((m, i) => {
@@ -1125,6 +1159,36 @@ window.deleteGroup = async function(id) {
   renderDashboard(true);
 };
 
+
+// ── 승인 / 반려 ──
+window.approveSubmission = async function(id) {
+  const { error } = await sb.from('submissions').update({ status: 'approved', reject_reason: null }).eq('id', id);
+  if (error) { toast('오류: ' + error.message, 'error'); return; }
+  toast('미션이 승인되었습니다.');
+  renderSubmissions();
+};
+
+let _rejectTargetId = null;
+window.openRejectModal = function(id) {
+  _rejectTargetId = id;
+  document.getElementById('reject-modal-wrap').style.display = '';
+  document.getElementById('reject-reason-input').value = '';
+  document.getElementById('reject-reason-input').focus();
+};
+window.closeRejectModal = function() {
+  document.getElementById('reject-modal-wrap').style.display = 'none';
+  _rejectTargetId = null;
+};
+window.confirmReject = async function() {
+  const reason = document.getElementById('reject-reason-input').value.trim();
+  if (!reason) { toast('반려 사유를 입력해주세요.', 'error'); return; }
+  const { error } = await sb.from('submissions').update({ status: 'rejected', reject_reason: reason }).eq('id', _rejectTargetId);
+  if (error) { toast('오류: ' + error.message, 'error'); return; }
+  closeRejectModal();
+  toast('반려 처리되었습니다.');
+  renderSubmissions();
+};
+
 window.deleteSubmission = async function(id) {
   if (!confirm('이 제출을 삭제하시겠습니까?')) return;
   await sb.from('submissions').delete().eq('id', id);
@@ -1142,7 +1206,14 @@ window.submitMission = async function() {
   if (!date) { toast('활동 날짜를 입력하세요.', 'error'); return; }
 
   const existing = (window._submissions || []).find(s => s.group_id === groupId && s.mission_id === missionId);
-  if (existing) { toast('이미 완료된 미션입니다.', 'error'); return; }
+  if (existing) {
+    if ((existing.status || 'pending') === 'rejected') {
+      // 반려된 경우 기존 제출 삭제 후 재제출
+      await sb.from('submissions').delete().eq('id', existing.id);
+    } else {
+      toast('이미 제출된 미션입니다.', 'error'); return;
+    }
+  }
 
   // 후기 100자 검증
   if (review.length < 30) {
