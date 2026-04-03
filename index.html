@@ -473,21 +473,9 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
   if (missions.length === 0) return '<div class="empty" style="padding:20px">미션이 등록되지 않았습니다.</div>';
 
   const PIECE_COLORS = ['#FF6B00','#0070C0','#059669','#7C3AED','#DC2626','#D97706','#0891B2','#BE185D'];
-
-  // 각 조의 현재 위치 = 완료한 미션 수
   const posMap = {};
-  groups.forEach(g => {
-    posMap[g.id] = (completedMap[g.id] || new Set()).size;
-  });
+  groups.forEach(g => { posMap[g.id] = (completedMap[g.id] || new Set()).size; });
 
-  // 셀 배열: START + 미션1~N + FINISH
-  const cells = [
-    { type: 'start', label: 'START', name: '출발!' },
-    ...missions.map((m, i) => ({ type: 'mission', label: `미션 ${i+1}`, name: m.name, id: m.id, index: i })),
-    { type: 'finish', label: 'FINISH', name: '수료!' }
-  ];
-
-  // 조별 말 위치 (0=start, 1~N=미션완료수, N+1=finish)
   const piecesByCell = {};
   groups.forEach((g, gi) => {
     const pos = Math.min(posMap[g.id] || 0, missions.length);
@@ -495,43 +483,191 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
     piecesByCell[pos].push({ name: g.name, color: PIECE_COLORS[gi % PIECE_COLORS.length], initial: g.name.charAt(0) });
   });
 
-  let html = '<div class="map-track">';
-  cells.forEach((cell, ci) => {
-    const isDone = cell.type === 'mission' && groups.some(g => (completedMap[g.id] || new Set()).has(cell.id));
-    const allDone = cell.type === 'mission' && groups.length > 0 && groups.every(g => (completedMap[g.id] || new Set()).has(cell.id));
-    const cellClass = cell.type === 'start' ? 'is-start' : cell.type === 'finish' ? 'is-finish' : (allDone ? 'is-done' : (isDone ? 'is-done' : ''));
-    const pieces = piecesByCell[ci] || [];
-    const piecesHTML = pieces.length > 0
-      ? `<div class="pieces-wrap">${pieces.map(p => `<div class="piece" style="background:${p.color}" title="${p.name}">${p.initial}</div>`).join('')}</div>`
-      : '';
+  // 노드 배열: START + 미션들 + FINISH
+  const nodes = [
+    { type: 'start', label: 'START', name: '출발!' },
+    ...missions.map((m, i) => ({ type: 'mission', label: `미션${i+1}`, name: m.name, id: m.id })),
+    { type: 'finish', label: 'FINISH', name: '수료! 🎉' }
+  ];
+  const N = nodes.length;
 
-    html += `<div class="map-cell ${cellClass}">
-      <div class="map-cell-num">${cell.label}</div>
-      <div class="map-cell-name">${cell.name}</div>
-      ${piecesHTML}
-    </div>`;
+  // ── SVG 레이아웃 계산 ──
+  // 지그재그로 배치: 홀수행=왼→오, 짝수행=오→왼
+  const COL = 4; // 한 줄에 최대 4개
+  const CW = 110, CH = 120; // 셀 간격
+  const NR = 56; // 노드 반지름
+  const PAD = 70;
+  const cols = Math.min(N, COL);
+  const rows = Math.ceil(N / COL);
+  const svgW = cols * CW + PAD * 2;
+  const svgH = rows * CH + PAD * 2;
 
-    if (ci < cells.length - 1) {
-      html += `<div class="map-arrow">›</div>`;
+  // 각 노드 좌표 계산 (지그재그)
+  const coords = nodes.map((_, i) => {
+    const row = Math.floor(i / COL);
+    const col = i % COL;
+    const isEvenRow = row % 2 === 0;
+    const actualCol = isEvenRow ? col : (Math.min(N - 1, (row + 1) * COL - 1) - (row * COL) - col);
+    // 마지막 행 노드 수 계산
+    const rowStart = row * COL;
+    const rowEnd = Math.min(rowStart + COL, N);
+    const rowCount = rowEnd - rowStart;
+    const colInRow = i - rowStart;
+    const actualColInRow = isEvenRow ? colInRow : (rowCount - 1 - colInRow);
+    const x = PAD + actualColInRow * CW + CW / 2;
+    const y = PAD + row * CH + CH / 2;
+    return { x, y };
+  });
+
+  // 경로선 그리기
+  let pathD = '';
+  let paths = '';
+  for (let i = 0; i < N - 1; i++) {
+    const a = coords[i], b = coords[i + 1];
+    // 같은 행이면 직선, 행 바뀌면 곡선
+    const rowA = Math.floor(i / COL), rowB = Math.floor((i+1) / COL);
+    if (rowA === rowB) {
+      // 수평 연결 - 점선 애니메이션
+      paths += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+        stroke="#E2E8F0" stroke-width="6" stroke-linecap="round"/>`;
+      paths += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+        stroke="#CBD5E1" stroke-width="6" stroke-linecap="round"
+        stroke-dasharray="12 8" opacity="0.6"/>`;
+    } else {
+      // 수직 연결 (행 바뀔 때)
+      const mx = a.x, my = b.y;
+      paths += `<path d="M ${a.x} ${a.y} Q ${mx} ${a.y} ${mx} ${(a.y+b.y)/2} Q ${mx} ${b.y} ${b.x} ${b.y}"
+        fill="none" stroke="#E2E8F0" stroke-width="6" stroke-linecap="round"/>`;
+      paths += `<path d="M ${a.x} ${a.y} Q ${mx} ${a.y} ${mx} ${(a.y+b.y)/2} Q ${mx} ${b.y} ${b.x} ${b.y}"
+        fill="none" stroke="#CBD5E1" stroke-width="6" stroke-linecap="round"
+        stroke-dasharray="12 8" opacity="0.6"/>`;
+    }
+  }
+
+  // 완료된 구간은 초록 경로
+  for (let i = 0; i < N - 1; i++) {
+    const nodeA = nodes[i], nodeB = nodes[i+1];
+    const allGroupsDoneA = i === 0 || (nodeA.type === 'mission' && groups.length > 0 && groups.every(g => (completedMap[g.id]||new Set()).has(nodeA.id)));
+    const allGroupsDoneB = nodeB.type === 'mission' && groups.length > 0 && groups.every(g => (completedMap[g.id]||new Set()).has(nodeB.id));
+    const someGroupsDoneB = nodeB.type === 'finish'
+      ? groups.some(g => posMap[g.id] >= missions.length)
+      : nodeB.type === 'mission' && groups.some(g => (completedMap[g.id]||new Set()).has(nodeB.id));
+
+    if (!someGroupsDoneB) continue;
+
+    const a = coords[i], b = coords[i+1];
+    const rowA = Math.floor(i/COL), rowB = Math.floor((i+1)/COL);
+    const strokeColor = allGroupsDoneB ? '#059669' : '#34D399';
+    if (rowA === rowB) {
+      paths += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+        stroke="${strokeColor}" stroke-width="6" stroke-linecap="round" opacity="0.7"/>`;
+    } else {
+      const mx = a.x;
+      paths += `<path d="M ${a.x} ${a.y} Q ${mx} ${a.y} ${mx} ${(a.y+b.y)/2} Q ${mx} ${b.y} ${b.x} ${b.y}"
+        fill="none" stroke="${strokeColor}" stroke-width="6" stroke-linecap="round" opacity="0.7"/>`;
+    }
+  }
+
+  // 노드 그리기
+  let nodesSVG = '';
+  nodes.forEach((node, i) => {
+    const {x, y} = coords[i];
+    const pieces = piecesByCell[i] || [];
+    let fill, stroke, labelColor, icon;
+
+    if (node.type === 'start') {
+      fill = '#FFF3EB'; stroke = '#FF6B00'; labelColor = '#FF6B00'; icon = '🚀';
+    } else if (node.type === 'finish') {
+      fill = '#FFFBEB'; stroke = '#D97706'; labelColor = '#D97706'; icon = '🏆';
+    } else {
+      const mId = node.id;
+      const allDone = groups.length > 0 && groups.every(g => (completedMap[g.id]||new Set()).has(mId));
+      const someDone = groups.some(g => (completedMap[g.id]||new Set()).has(mId));
+      if (allDone) { fill = '#D1FAE5'; stroke = '#059669'; labelColor = '#065F46'; icon = '✅'; }
+      else if (someDone) { fill = '#FFF3EB'; stroke = '#FF6B00'; labelColor = '#FF6B00'; icon = ''; }
+      else { fill = '#F8FAFC'; stroke = '#CBD5E1'; labelColor = '#64748B'; icon = ''; }
+    }
+
+    // 원 노드
+    nodesSVG += `<circle cx="${x}" cy="${y}" r="${NR}" fill="${fill}" stroke="${stroke}" stroke-width="2.5"/>`;
+
+    // 아이콘 또는 번호
+    if (icon) {
+      nodesSVG += `<text x="${x}" y="${y - 8}" text-anchor="middle" font-size="20">${icon}</text>`;
+    }
+
+    // 라벨 (상단)
+    nodesSVG += `<text x="${x}" y="${y + (icon ? 10 : 4)}" text-anchor="middle"
+      font-size="10" font-weight="700" fill="${labelColor}" font-family="sans-serif">${node.label}</text>`;
+
+    // 미션명 (하단, 줄 나눔)
+    const words = node.name;
+    const maxLen = 8;
+    const line1 = words.length > maxLen ? words.slice(0, maxLen) : words;
+    const line2 = words.length > maxLen ? words.slice(maxLen, maxLen * 2) : '';
+    nodesSVG += `<text x="${x}" y="${y + (icon ? 22 : 18)}" text-anchor="middle"
+      font-size="8.5" fill="#64748B" font-family="sans-serif">${line1}</text>`;
+    if (line2) {
+      nodesSVG += `<text x="${x}" y="${y + (icon ? 32 : 28)}" text-anchor="middle"
+        font-size="8.5" fill="#64748B" font-family="sans-serif">${line2}${words.length > maxLen*2 ? '...' : ''}</text>`;
+    }
+
+    // 조별 말 표시
+    if (pieces.length > 0) {
+      const totalPieces = pieces.length;
+      pieces.forEach((p, pi) => {
+        const angle = (pi / Math.max(totalPieces, 1)) * Math.PI * 2 - Math.PI / 2;
+        const pr = totalPieces === 1 ? 0 : NR - 12;
+        const px2 = x + (totalPieces === 1 ? 0 : Math.cos(angle) * pr);
+        const py2 = y + (totalPieces === 1 ? -NR + 12 : Math.sin(angle) * pr);
+        nodesSVG += `<circle cx="${px2}" cy="${py2 - (totalPieces === 1 ? 0 : 0)}" r="10"
+          fill="${p.color}" stroke="white" stroke-width="2"/>`;
+        nodesSVG += `<text x="${px2}" y="${py2 + 4 - (totalPieces === 1 ? 0 : 0)}" text-anchor="middle"
+          font-size="8" font-weight="800" fill="white" font-family="sans-serif">${p.initial}</text>`;
+      });
+      // 말이 있는 노드 외곽 강조
+      nodesSVG += `<circle cx="${x}" cy="${y}" r="${NR + 4}" fill="none"
+        stroke="${pieces[0].color}" stroke-width="2" stroke-dasharray="4 3" opacity="0.7"/>`;
     }
   });
-  html += '</div>';
+
+  // 방향 화살표 (각 구간 중간)
+  let arrows = '';
+  for (let i = 0; i < N - 1; i++) {
+    const a = coords[i], b = coords[i+1];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const rowA = Math.floor(i/COL), rowB = Math.floor((i+1)/COL);
+    if (rowA === rowB) {
+      const dx = b.x - a.x > 0 ? 1 : -1;
+      arrows += `<polygon points="${mx},${my-5} ${mx+dx*9},${my} ${mx},${my+5}"
+        fill="#94A3B8" opacity="0.6"/>`;
+    }
+  }
+
+  const svgHTML = `<div style="overflow-x:auto;margin:-4px">
+    <svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}"
+      style="min-width:${svgW}px;max-width:100%;display:block">
+      ${paths}${arrows}${nodesSVG}
+    </svg>
+  </div>`;
 
   // 범례
+  let legend = '';
   if (groups.length > 0) {
-    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-200)">`;
+    legend = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--gray-200)">`;
     groups.forEach((g, gi) => {
       const pos = posMap[g.id] || 0;
       const color = PIECE_COLORS[gi % PIECE_COLORS.length];
-      html += `<div style="display:flex;align-items:center;gap:5px;font-size:12px">
-        <div style="width:14px;height:14px;border-radius:50%;background:${color};border:1.5px solid white;box-shadow:0 0 0 1px ${color}"></div>
+      legend += `<div style="display:flex;align-items:center;gap:5px;font-size:12px">
+        <div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 0 1.5px ${color}"></div>
         <span style="font-weight:500">${g.name}</span>
         <span style="color:var(--gray-400)">(${pos}/${missions.length} 완료)</span>
       </div>`;
     });
-    html += '</div>';
+    legend += '</div>';
   }
-  return html;
+
+  return svgHTML + legend;
 }
 
 async function renderDashboard() {
@@ -992,16 +1128,37 @@ window.refreshSubmitForm = function() {
       }
     }
 
-    return `<div class="ms-card ${done ? 'done' : ''}" id="msc-${m.id}" onclick="selectMissionToSubmit('${m.id}','${m.name}')">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="mission-num">${i+1}</div>
+    // 반려 여부 확인
+    const rejectedSub = submissions.filter(s => s.group_id === groupId && s.mission_id === m.id)
+                                   .find(s => (s.status || 'pending') === 'rejected');
+    const isRejected = !!rejectedSub;
+    const cardClass = done ? 'done' : isRejected ? '' : '';
+    const cardStyle = isRejected ? 'border-left:4px solid #DC2626;background:#FFF8F8;' : '';
+
+    return `<div class="ms-card ${cardClass}" id="msc-${m.id}" style="${cardStyle}" onclick="${isRejected || !done ? `selectMissionToSubmit('${m.id}','${m.name}')` : ''}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div class="mission-num" style="${isRejected ? 'background:#FEF2F2;color:#DC2626;' : ''}">${i+1}</div>
         <div style="flex:1">
           <div style="font-size:13px;font-weight:600;display:flex;align-items:center;flex-wrap:wrap;gap:4px">
             ${m.name}
-            ${done ? '<span class="badge badge-green" style="font-size:10px">완료</span>' : ''}
-            ${!done ? deadlineBadge : ''}
+            ${isRejected ? '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#FEF2F2;color:#DC2626">✕ 반려</span>' : ''}
+            ${done && !isRejected ? '<span class="badge badge-green" style="font-size:10px">✓ 완료</span>' : ''}
+            ${!done && !isRejected ? deadlineBadge : ''}
           </div>
           <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${m.week||''} · ${m.stamp||1}스탬프${m.end_date ? ' · 마감 '+m.end_date : ''}${m.description?' · '+m.description:''}</div>
+          ${isRejected && rejectedSub?.reject_reason ? `
+            <div style="margin-top:8px;background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:8px 12px;">
+              <div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:3px">반려 사유</div>
+              <div style="font-size:12px;color:#DC2626;">${rejectedSub.reject_reason}</div>
+            </div>
+            <div style="margin-top:8px;padding:8px 12px;background:var(--gray-50);border-radius:6px;border:1px solid var(--gray-200);">
+              <div style="font-size:11px;font-weight:700;color:var(--gray-500);margin-bottom:3px">기존 제출 내용</div>
+              <div style="font-size:12px;color:var(--gray-600);">${rejectedSub.review || '후기 없음'}</div>
+              ${rejectedSub.image_url ? `<a href="${rejectedSub.image_url}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none;font-weight:500;display:inline-block;margin-top:4px">🖼️ 사진 보기</a>` : ''}
+              ${rejectedSub.doc_url ? `<a href="${rejectedSub.doc_url}" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none;font-weight:500;display:inline-block;margin-top:4px;margin-left:8px">📎 첨부파일 보기</a>` : ''}
+            </div>
+            <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="event.stopPropagation();selectMissionToSubmit('${m.id}','${m.name}')">✏️ 수정하여 재제출</button>
+          ` : ''}
         </div>
       </div>
     </div>`;
@@ -1036,6 +1193,20 @@ window.selectMissionToSubmit = function(id, name) {
   document.getElementById('sf-mission-id').value = id;
   document.getElementById('sf-title').textContent = '미션 제출: ' + name;
   document.getElementById('submit-form-card').style.display = '';
+
+  // 반려된 경우 기존 내용 자동 채우기
+  const groupId = document.getElementById('my-group-sel').value;
+  const rejectedSub = (window._submissions || []).find(s =>
+    s.group_id === groupId && s.mission_id === id && (s.status || 'pending') === 'rejected'
+  );
+  if (rejectedSub) {
+    document.getElementById('sf-review').value = rejectedSub.review || '';
+    updateReviewCounter();
+    document.getElementById('submit-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    document.getElementById('sf-review').value = '';
+    updateReviewCounter();
+  }
 };
 
 // 사진 선택 핸들러
