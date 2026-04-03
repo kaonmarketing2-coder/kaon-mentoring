@@ -477,20 +477,31 @@ function buildStampMap(missions, groups, completedMap, stampsMap, submissions=[]
   const posMap = {};
   groups.forEach(g => { posMap[g.id] = (completedMap[g.id] || new Set()).size; });
 
-  // 조별 승인된 미션 수 (말의 실제 위치)
+  // 조별 승인된 미션 수 (고유 미션 ID 기준 — 말의 실제 위치)
   const approvedCountMap = {};
   groups.forEach(g => {
-    approvedCountMap[g.id] = submissions.filter(s =>
-      s.group_id === g.id && s.status === 'approved'
-    ).length;
+    const approvedMissions = new Set(
+      submissions
+        .filter(s => s.group_id === g.id && s.status === 'approved')
+        .map(s => s.mission_id)
+    );
+    approvedCountMap[g.id] = approvedMissions.size;
   });
 
-  // 조별 검토중 미션 수 (pending = 제출했으나 미승인)
+  // 조별 검토중 미션 수 (고유 미션 ID 기준)
   const pendingCountMap = {};
   groups.forEach(g => {
-    pendingCountMap[g.id] = submissions.filter(s =>
-      s.group_id === g.id && (s.status === 'pending' || !s.status)
-    ).length;
+    const approvedSet = new Set(
+      submissions
+        .filter(s => s.group_id === g.id && s.status === 'approved')
+        .map(s => s.mission_id)
+    );
+    const pendingMissions = new Set(
+      submissions
+        .filter(s => s.group_id === g.id && (s.status === 'pending' || !s.status) && !approvedSet.has(s.mission_id))
+        .map(s => s.mission_id)
+    );
+    pendingCountMap[g.id] = pendingMissions.size;
   });
 
   // piecesByCell: 승인 위치에 말 배치
