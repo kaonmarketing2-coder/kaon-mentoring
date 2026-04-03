@@ -494,10 +494,10 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
   // 총 노드 수 N에 따라 COL 결정: 화면에 자연스럽게 맞도록
   const COL = N <= 6 ? N : N <= 12 ? Math.ceil(N / 2) : N <= 20 ? Math.ceil(N / 3) : N <= 30 ? Math.ceil(N / 4) : Math.ceil(N / 5);
 
-  const R = 20;         // 노드 반지름
-  const HGAP = 70;      // 수평 간격 (노드 중심 간)
-  const VGAP = 80;      // 수직 간격 (행 간)
-  const PX = 45, PY = 40;
+  const R = 21;         // 노드 반지름
+  const HGAP = 75;      // 수평 간격 (노드 중심 간)
+  const VGAP = 85;      // 수직 간격 (행 간)
+  const PX = 45, PY = 45;
 
   const rows = Math.ceil(N / COL);
   const rowCounts = [];
@@ -543,10 +543,10 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
       pathD = `M ${a.x} ${ay} C ${a.x} ${midY} ${b.x} ${midY} ${b.x} ${by}`;
     }
 
-    pathsSVG += `<path d="${pathD}" fill="none" stroke="#E2E8F0" stroke-width="5" stroke-linecap="round"/>`;
-    pathsSVG += `<path d="${pathD}" fill="none" stroke="#CBD5E1" stroke-width="5" stroke-linecap="round" stroke-dasharray="10 8" opacity="0.5"/>`;
+    pathsSVG += `<path d="${pathD}" fill="none" stroke="#E2E8F0" stroke-width="4.5" stroke-linecap="round"/>`;
+    pathsSVG += `<path d="${pathD}" fill="none" stroke="#CBD5E1" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="9 7" opacity="0.5"/>`;
     if (someDone) {
-      pathsSVG += `<path d="${pathD}" fill="none" stroke="${allDone ? '#059669' : '#34D399'}" stroke-width="5" stroke-linecap="round" opacity="0.85"/>`;
+      pathsSVG += `<path d="${pathD}" fill="none" stroke="${allDone ? '#059669' : '#34D399'}" stroke-width="4.5" stroke-linecap="round" opacity="0.85"/>`;
     }
   }
 
@@ -558,7 +558,7 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
     if (rowA === rowB) {
       const mx = (a.x + b.x) / 2, my = a.y;
       const dir = b.x > a.x ? 1 : -1;
-      arrowsSVG += `<polygon points="${mx},${my-5} ${mx+dir*9},${my} ${mx},${my+5}" fill="#94A3B8" opacity="0.8"/>`;
+      arrowsSVG += `<polygon points="${mx},${my-5} ${mx+dir*8},${my} ${mx},${my+5}" fill="#94A3B8" opacity="0.8"/>`;
     }
   }
 
@@ -580,13 +580,13 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
       const mId = node.id;
       const allDone = groups.length > 0 && groups.every(g => (completedMap[g.id]||new Set()).has(mId));
       const someDone = groups.some(g => (completedMap[g.id]||new Set()).has(mId));
-      if (allDone)       { fill='#059669'; stroke='#047857'; iconText='✓'; iconSize=16; labelFill='#047857'; }
+      if (allDone)       { fill='#059669'; stroke='#047857'; iconText='✓'; iconSize=13; labelFill='#047857'; }
       else if (someDone) { fill='#FFF3EB'; stroke='#FF6B00'; iconText='';  iconSize=0;  labelFill='#FF6B00'; }
       else               { fill='#F1F5F9'; stroke='#CBD5E1'; iconText='';  iconSize=0;  labelFill='#64748B'; }
     }
 
     if (pieces.length > 0) {
-      nodesSVG += `<circle cx="${x}" cy="${y}" r="${R+7}" fill="none" stroke="${pieces[0].color}" stroke-width="2.5" stroke-dasharray="5 4" opacity="0.75"/>`;
+      nodesSVG += `<circle cx="${x}" cy="${y}" r="${R+6}" fill="none" stroke="${pieces[0].color}" stroke-width="2" stroke-dasharray="5 4" opacity="0.75"/>`;
     }
     nodesSVG += `<circle cx="${x}" cy="${y}" r="${R}" fill="${fill}" stroke="${stroke}" stroke-width="2.5"/>`;
     if (iconText) {
@@ -601,8 +601,8 @@ function buildStampMap(missions, groups, completedMap, stampsMap) {
         const pr = R - 8;
         const px2 = total === 1 ? x : x + Math.cos(angle) * pr;
         const py2 = total === 1 ? y - R + 10 : y + Math.sin(angle) * pr;
-        nodesSVG += `<circle cx="${px2}" cy="${py2}" r="9" fill="${p.color}" stroke="white" stroke-width="2"/>`;
-        nodesSVG += `<text x="${px2}" y="${py2+4}" text-anchor="middle" font-size="7" font-weight="800" fill="white" font-family="sans-serif">${p.initial}</text>`;
+        nodesSVG += `<circle cx="${px2}" cy="${py2}" r="8" fill="${p.color}" stroke="white" stroke-width="2"/>`;
+        nodesSVG += `<text x="${px2}" y="${py2+3}" text-anchor="middle" font-size="7" font-weight="800" fill="white" font-family="sans-serif">${p.initial}</text>`;
       });
     }
   });
