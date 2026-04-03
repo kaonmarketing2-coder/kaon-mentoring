@@ -676,6 +676,7 @@ async function renderDashboard() {
   const completedMap = {};
   groups.forEach(g => { stampsMap[g.id] = 0; completedMap[g.id] = new Set(); });
   submissions.forEach(s => {
+    if ((s.status || 'pending') === 'rejected') return; // 반려된 건 스탬프 제외
     if (!completedMap[s.group_id]?.has(s.mission_id)) {
       completedMap[s.group_id]?.add(s.mission_id);
       const m = missions.find(x => x.id === s.mission_id);
@@ -963,6 +964,7 @@ async function renderMemberDashboard() {
   const completedMap = {};
   groups.forEach(g => { stampsMap[g.id] = 0; completedMap[g.id] = new Set(); });
   submissions.forEach(s => {
+    if ((s.status || 'pending') === 'rejected') return; // 반려된 건 스탬프 제외
     if (!completedMap[s.group_id]?.has(s.mission_id)) {
       completedMap[s.group_id]?.add(s.mission_id);
       const m = missions.find(x => x.id === s.mission_id);
