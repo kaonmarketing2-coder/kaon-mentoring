@@ -227,8 +227,6 @@
   .group-chip { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--gray-200); border-radius: 20px; font-size: 13px; background: white; }
   .chip-del { cursor: pointer; color: var(--gray-400); font-size: 16px; line-height: 1; padding: 0 2px; }
   .chip-del:hover { color: #DC2626; }
-  .chip-edit { cursor: pointer; font-size: 13px; padding: 0 3px; opacity: 0.5; transition: opacity 0.15s; }
-  .chip-edit:hover { opacity: 1; }
 
   /* SUBMISSIONS */
   .sub-card { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: white; margin-bottom: 8px; }
@@ -467,6 +465,10 @@ async function getSubmissions() {
   const { data } = await sb.from('submissions').select('*').order('submitted_at', { ascending: false });
   return data || [];
 }
+async function getBonusStamps() {
+  const { data } = await sb.from('bonus_stamps').select('*').order('created_at', { ascending: false });
+  return data || [];
+}
 
 // ── RENDER ADMIN DASHBOARD ──
 
@@ -682,7 +684,7 @@ function buildStampMap(missions, groups, completedMap, stampsMap, submissions=[]
 async function renderDashboard() {
   const el = document.getElementById('page-dashboard');
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
-  const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
+  const [missions, groups, submissions, bonusStamps] = await Promise.all([getMissions(), getGroups(), getSubmissions(), getBonusStamps()]);
 
   const activeGroups = groups.filter(g => submissions.some(s => s.group_id === g.id)).length;
   const stampsMap = {};
@@ -699,6 +701,10 @@ async function renderDashboard() {
     }
   });
 
+  // 보너스 스탬프 합산
+  bonusStamps.forEach(b => {
+    if (stampsMap[b.group_id] !== undefined) stampsMap[b.group_id] += (b.amount || 0);
+  });
   const sorted = [...groups].sort((a,b) => (stampsMap[b.id]||0) - (stampsMap[a.id]||0));
   const maxStamp = Math.max(...Object.values(stampsMap), 1);
 
@@ -834,23 +840,53 @@ async function renderMissions() {
 async function renderGroups() {
   const el = document.getElementById('page-groups');
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
-  const [groups, submissions] = await Promise.all([getGroups(), getSubmissions()]);
+  const [groups, submissions, bonusStamps] = await Promise.all([getGroups(), getSubmissions(), getBonusStamps()]);
 
-  // exportData 갱신 (deleteGroup에서 건수 참조용)
+  // exportData 갱신
   if (!window._exportData) window._exportData = {};
   window._exportData.groups = groups;
   window._exportData.submissions = submissions;
 
+  // 조별 보너스 합계
+  const bonusMap = {};
+  bonusStamps.forEach(b => { bonusMap[b.group_id] = (bonusMap[b.group_id] || 0) + (b.amount || 0); });
+
   const chipsHTML = groups.length === 0 ? '<div class="empty">등록된 조가 없습니다.</div>' :
     `<div class="group-chips">${groups.map(g => {
       const cnt = submissions.filter(s => s.group_id === g.id).length;
-      return `<div class="group-chip" id="chip-${g.id}">
-        <span class="chip-name">${g.name}</span>
+      const bonus = bonusMap[g.id] || 0;
+      return `<div class="group-chip">
+        <span>${g.name}</span>
         ${cnt > 0 ? `<span style="font-size:11px;color:var(--gray-400);background:var(--gray-100);padding:1px 7px;border-radius:20px;margin-left:2px">${cnt}건</span>` : ''}
-        <span class="chip-edit" onclick="startEditGroup('${g.id}', \`${g.name.replace(/`/g,'\\`')}\`)" title="이름 수정">✏️</span>
+        ${bonus > 0 ? `<span style="font-size:11px;color:#FF6B00;background:#FFF3EB;padding:1px 7px;border-radius:20px;margin-left:2px">+${bonus}보너스</span>` : ''}
         <span class="chip-del" onclick="deleteGroup('${g.id}')">×</span>
       </div>`;
     }).join('')}</div>`;
+
+  // 보너스 이력 HTML
+  const bonusHistoryHTML = bonusStamps.length === 0 ? '<div style="color:var(--gray-400);font-size:13px">부여된 보너스 스탬프가 없습니다.</div>' :
+    `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:1px solid var(--gray-200)">
+        <th style="text-align:left;padding:6px 8px;color:var(--gray-500);font-weight:500">조</th>
+        <th style="text-align:center;padding:6px 8px;color:var(--gray-500);font-weight:500">스탬프</th>
+        <th style="text-align:left;padding:6px 8px;color:var(--gray-500);font-weight:500">사유</th>
+        <th style="text-align:left;padding:6px 8px;color:var(--gray-500);font-weight:500">일시</th>
+        <th style="padding:6px 8px"></th>
+      </tr></thead>
+      <tbody>${bonusStamps.map(b => {
+        const g = groups.find(x => x.id === b.group_id);
+        const dateStr = b.created_at ? new Date(b.created_at).toLocaleDateString('ko-KR') : '';
+        return `<tr style="border-bottom:1px solid var(--gray-100)">
+          <td style="padding:6px 8px">${g?.name || '-'}</td>
+          <td style="padding:6px 8px;text-align:center;color:var(--primary);font-weight:700">+${b.amount}</td>
+          <td style="padding:6px 8px;color:var(--gray-600)">${b.reason || ''}</td>
+          <td style="padding:6px 8px;color:var(--gray-400)">${dateStr}</td>
+          <td style="padding:6px 8px"><span onclick="deleteBonus('${b.id}')" style="cursor:pointer;color:var(--gray-300);font-size:14px" title="삭제">×</span></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+
+  const groupOpts = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
 
   el.innerHTML = `
     <div class="card">
@@ -864,6 +900,28 @@ async function renderGroups() {
       <div class="card-title">등록된 조 (${groups.length}개)</div>
       <div style="font-size:12px;color:var(--gray-400);margin-bottom:12px">⚠️ 조 삭제 시 해당 조의 미션 제출 데이터도 함께 삭제됩니다.</div>
       ${chipsHTML}
+    </div>
+    <div class="card">
+      <div class="card-title">⭐ 보너스 스탬프 부여</div>
+      <div style="font-size:12px;color:var(--gray-500);margin-bottom:14px">미션과 별도로 특별히 잘한 조에게 스탬프를 추가 부여합니다. 순위에 반영되며 스탬프 투어 맵에는 표시되지 않습니다.</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="min-width:140px"><label>조 선택</label>
+          <select id="bonus-group" style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius);font-size:14px">
+            <option value="">-- 선택 --</option>${groupOpts}
+          </select>
+        </div>
+        <div class="form-group" style="width:90px"><label>스탬프 수</label>
+          <input id="bonus-amount" type="number" value="1" min="1" max="10" style="width:100%">
+        </div>
+        <div class="form-group" style="flex:1;min-width:160px"><label>부여 사유 (선택)</label>
+          <input id="bonus-reason" placeholder="예: 최우수 미션 수행" maxlength="50">
+        </div>
+        <button class="btn btn-primary" onclick="addBonus()" style="flex-shrink:0">⭐ 부여</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 보너스 스탬프 이력</div>
+      ${bonusHistoryHTML}
     </div>`;
 }
 
@@ -1347,25 +1405,25 @@ window.deleteGroup = async function(id) {
 };
 
 
-window.startEditGroup = function(id, currentName) {
-  const chip = document.getElementById('chip-' + id);
-  if (!chip) return;
-  chip.innerHTML = `
-    <input id="edit-g-${id}" value="${currentName.replace(/"/g,'&quot;')}" style="border:1px solid var(--primary);border-radius:4px;padding:2px 7px;font-size:14px;outline:none;width:180px" onkeydown="if(event.key==='Enter')renameGroup('${id}');if(event.key==='Escape')renderGroups();">
-    <button onclick="renameGroup('${id}')" style="background:var(--primary);color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;margin-left:4px">저장</button>
-    <button onclick="renderGroups()" style="background:var(--gray-200);color:var(--gray-700);border:none;border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;margin-left:2px">취소</button>
-  `;
-  document.getElementById('edit-g-' + id)?.focus();
+window.addBonus = async function() {
+  const group_id = document.getElementById('bonus-group').value;
+  const amount = parseInt(document.getElementById('bonus-amount').value, 10);
+  const reason = document.getElementById('bonus-reason').value.trim();
+  if (!group_id) { toast('조를 선택하세요.', 'error'); return; }
+  if (!amount || amount < 1) { toast('스탬프 수를 1 이상 입력하세요.', 'error'); return; }
+  const { error } = await sb.from('bonus_stamps').insert({ group_id, amount, reason });
+  if (error) { toast('오류: ' + error.message, 'error'); return; }
+  const g = (window._exportData?.groups || []).find(x => x.id === group_id);
+  toast(`"${g?.name || '선택된 조'}"에 보너스 스탬프 ${amount}개 부여 완료!`);
+  renderGroups();
+  renderDashboard(true);
 };
 
-window.renameGroup = async function(id) {
-  const input = document.getElementById('edit-g-' + id);
-  if (!input) return;
-  const newName = input.value.trim();
-  if (!newName) { toast('조 이름을 입력하세요.', 'error'); return; }
-  const { error } = await sb.from('groups').update({ name: newName }).eq('id', id);
-  if (error) { toast(error.message.includes('unique') ? '이미 존재하는 조 이름입니다.' : error.message, 'error'); return; }
-  toast(`"${newName}"으로 변경되었습니다.`);
+window.deleteBonus = async function(id) {
+  if (!confirm('이 보너스 스탬프 기록을 삭제하시겠습니까?')) return;
+  const { error } = await sb.from('bonus_stamps').delete().eq('id', id);
+  if (error) { toast('오류: ' + error.message, 'error'); return; }
+  toast('보너스 스탬프가 삭제되었습니다.');
   renderGroups();
   renderDashboard(true);
 };
