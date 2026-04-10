@@ -702,8 +702,13 @@ async function renderDashboard() {
   });
 
   // 보너스 스탬프 합산
+  const bonusMap = {};
+  groups.forEach(g => { bonusMap[g.id] = 0; });
   bonusStamps.forEach(b => {
-    if (stampsMap[b.group_id] !== undefined) stampsMap[b.group_id] += (b.amount || 0);
+    if (stampsMap[b.group_id] !== undefined) {
+      stampsMap[b.group_id] += (b.amount || 0);
+      bonusMap[b.group_id] = (bonusMap[b.group_id] || 0) + (b.amount || 0);
+    }
   });
   const sorted = [...groups].sort((a,b) => (stampsMap[b.id]||0) - (stampsMap[a.id]||0));
   const maxStamp = Math.max(...Object.values(stampsMap), 1);
@@ -750,11 +755,12 @@ async function renderDashboard() {
       const done = completedMap[g.id]||new Set();
       const emoji = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`;
       const dots = missions.map((m,mi) => `<div class="dot ${done.has(m.id)?'dot-done':'dot-empty'}" title="미션${mi+1}">${mi+1}</div>`).join('');
+      const bonus = bonusMap[g.id] || 0;
       return `<div class="rank-card ${i===0?'r1':''}">
         <div class="rank-badge">${emoji}</div>
         <div class="rank-info">
           <div class="rank-name">${g.name}</div>
-          <div class="rank-stamp">${stamps}스탬프</div>
+          <div class="rank-stamp">${stamps}스탬프${bonus > 0 ? ` <span style="font-size:10px;color:#FF6B00;background:#FFF3EB;padding:1px 6px;border-radius:10px;font-weight:700">⭐+${bonus}</span>` : ''}</div>
           <div class="rank-dots">${dots}</div>
         </div>
       </div>`;
@@ -881,7 +887,7 @@ async function renderGroups() {
           <td style="padding:6px 8px;text-align:center;color:var(--primary);font-weight:700">+${b.amount}</td>
           <td style="padding:6px 8px;color:var(--gray-600)">${b.reason || ''}</td>
           <td style="padding:6px 8px;color:var(--gray-400)">${dateStr}</td>
-          <td style="padding:6px 8px"><span onclick="deleteBonus('${b.id}')" style="cursor:pointer;color:var(--gray-300);font-size:14px" title="삭제">×</span></td>
+          <td style="padding:6px 8px"><button onclick="deleteBonus('${b.id}')" style="background:none;border:1px solid #FECACA;color:#DC2626;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;white-space:nowrap" title="회수">회수</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
@@ -1032,11 +1038,12 @@ window.exportToCSV = function() {
 async function renderMemberDashboard() {
   const el = document.getElementById('page-m-dashboard');
   el.innerHTML = '<div class="loading">불러오는 중...</div>';
-  const [missions, groups, submissions] = await Promise.all([getMissions(), getGroups(), getSubmissions()]);
+  const [missions, groups, submissions, bonusStamps] = await Promise.all([getMissions(), getGroups(), getSubmissions(), getBonusStamps()]);
 
   const stampsMap = {};
   const completedMap = {};
-  groups.forEach(g => { stampsMap[g.id] = 0; completedMap[g.id] = new Set(); });
+  const bonusMap = {};
+  groups.forEach(g => { stampsMap[g.id] = 0; completedMap[g.id] = new Set(); bonusMap[g.id] = 0; });
   submissions.forEach(s => {
     const st = s.status || 'pending';
     // 승인된 것만 스탬프 카운트 (pending, rejected 제외)
@@ -1047,6 +1054,8 @@ async function renderMemberDashboard() {
       stampsMap[s.group_id] = (stampsMap[s.group_id] || 0) + (m?.stamp || 1);
     }
   });
+  bonusStamps.forEach(b => { if (bonusMap[b.group_id] !== undefined) bonusMap[b.group_id] += (b.amount || 0); });
+  groups.forEach(g => { stampsMap[g.id] = (stampsMap[g.id] || 0) + (bonusMap[g.id] || 0); });
 
   const sorted = [...groups].sort((a,b) => (stampsMap[b.id]||0) - (stampsMap[a.id]||0));
   const maxStamp = Math.max(...Object.values(stampsMap), 1);
@@ -1082,11 +1091,12 @@ async function renderMemberDashboard() {
       const done = completedMap[g.id]||new Set();
       const emoji = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`;
       const dots = missions.map((m,mi) => `<div class="dot ${done.has(m.id)?'dot-done':'dot-empty'}" title="미션${mi+1}">${mi+1}</div>`).join('');
+      const bonus = bonusMap[g.id] || 0;
       return `<div class="rank-card ${i===0?'r1':''}">
         <div class="rank-badge">${emoji}</div>
         <div class="rank-info">
           <div class="rank-name">${g.name}</div>
-          <div class="rank-stamp">${stamps}스탬프</div>
+          <div class="rank-stamp">${stamps}스탬프${bonus > 0 ? ` <span style="font-size:10px;color:#FF6B00;background:#FFF3EB;padding:1px 6px;border-radius:10px;font-weight:700">⭐+${bonus}</span>` : ''}</div>
           <div class="rank-dots">${dots}</div>
         </div>
       </div>`;
