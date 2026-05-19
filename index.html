@@ -227,6 +227,8 @@
   .group-chip { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--gray-200); border-radius: 20px; font-size: 13px; background: white; }
   .chip-del { cursor: pointer; color: var(--gray-400); font-size: 16px; line-height: 1; padding: 0 2px; }
   .chip-del:hover { color: #DC2626; }
+  .chip-edit { cursor: pointer; color: var(--gray-400); font-size: 13px; line-height: 1; padding: 0 2px; }
+  .chip-edit:hover { color: #2563eb; }
 
   /* SUBMISSIONS */
   .sub-card { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: white; margin-bottom: 8px; }
@@ -865,6 +867,7 @@ async function renderGroups() {
         <span>${g.name}</span>
         ${cnt > 0 ? `<span style="font-size:11px;color:var(--gray-400);background:var(--gray-100);padding:1px 7px;border-radius:20px;margin-left:2px">${cnt}건</span>` : ''}
         ${bonus > 0 ? `<span style="font-size:11px;color:#FF6B00;background:#FFF3EB;padding:1px 7px;border-radius:20px;margin-left:2px">+${bonus}보너스</span>` : ''}
+        <span class="chip-edit" onclick="startGroupEdit('${g.id}', this)" title="이름 수정">✏</span>
         <span class="chip-del" onclick="deleteGroup('${g.id}')">×</span>
       </div>`;
     }).join('')}</div>`;
@@ -1410,6 +1413,33 @@ window.deleteGroup = async function(id) {
   await sb.from('submissions').delete().eq('group_id', id);
   await sb.from('groups').delete().eq('id', id);
   toast(`"${groupName}"이 삭제되었습니다.`);
+  renderGroups();
+  renderDashboard(true);
+};
+
+window.startGroupEdit = function(id, btn) {
+  const chip = btn.closest('.group-chip');
+  const currentName = chip.querySelector('span:first-child').textContent;
+  chip.innerHTML = `
+    <input value="${currentName.replace(/"/g, '&quot;')}"
+      style="border:1.5px solid #3b82f6;border-radius:8px;padding:3px 8px;font-size:13px;outline:none;width:180px;"
+      onkeydown="if(event.key==='Enter')saveGroupRename('${id}',this);if(event.key==='Escape')renderGroups()">
+    <button onclick="saveGroupRename('${id}',this.previousElementSibling)"
+      style="font-size:12px;padding:3px 10px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600">저장</button>
+    <button onclick="renderGroups()"
+      style="font-size:12px;padding:3px 10px;background:var(--gray-200);color:var(--gray-600);border:none;border-radius:8px;cursor:pointer">취소</button>
+  `;
+  const input = chip.querySelector('input');
+  input.focus();
+  input.select();
+};
+
+window.saveGroupRename = async function(id, input) {
+  const newName = input.value.trim();
+  if (!newName) { toast('조 이름을 입력하세요.', 'error'); return; }
+  const { error } = await sb.from('groups').update({ name: newName }).eq('id', id);
+  if (error) { toast(error.message.includes('unique') ? '이미 존재하는 조 이름입니다.' : error.message, 'error'); return; }
+  toast(`"${newName}"으로 수정되었습니다.`);
   renderGroups();
   renderDashboard(true);
 };
